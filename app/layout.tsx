@@ -5,7 +5,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/components/providers/auth-provider'
 import './globals.css'
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const inter = Inter({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   title: 'ConnectHub - Build Meaningful Connections',
@@ -39,7 +39,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={inter.variable}>
       <head>
         <link rel="manifest" href="/manifest.json" />
         <meta name="mobile-web-app-capable" content="yes" />
