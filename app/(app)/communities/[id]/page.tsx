@@ -34,6 +34,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function CommunityDetailPage() {
   const params = useParams();
@@ -74,7 +75,7 @@ export default function CommunityDetailPage() {
     <div className="pb-20 lg:pb-0">
       {/* Cover Image */}
       <div className="relative h-32 sm:h-48 lg:h-64">
-        <ImageIcon
+        <Image
           src={community.coverImage || "/placeholder.svg"}
           alt={community.name}
           className="object-cover"
@@ -309,7 +310,7 @@ export default function CommunityDetailPage() {
                             key={idx}
                             className="relative aspect-video overflow-hidden rounded-lg"
                           >
-                            <ImageIcon
+                            <Image
                               src={image || "/placeholder.svg"}
                               alt="Post image"
                               className="object-cover"
