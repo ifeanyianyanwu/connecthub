@@ -12,7 +12,7 @@ export async function ProtectedLayout({
 
   const { data, error } = await supabase.auth.getClaims();
   if (error || !data?.claims) {
-    redirect("/auth/login");
+    redirect("/login");
   }
 
   return <AppShell>{children}</AppShell>;
