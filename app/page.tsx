@@ -1,49 +1,7 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/components/providers/auth-provider";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Users,
-  MessageSquare,
-  Globe,
-  Sparkles,
-  ArrowRight,
-  Shield,
-  Zap,
-  Heart,
-} from "lucide-react";
-import Link from "next/link";
-import { ro } from "date-fns/locale";
-
-export default function HomePage() {
-  const { user, isLoading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isLoading && user) {
-      router.push("/feed");
-    } else router.push("/login");
-  }, [user, isLoading, router]);
-
-  // if (isLoading) {
-  //   return (
-  //     <div className="min-h-screen flex items-center justify-center bg-background">
-  //       <div className="animate-pulse flex flex-col items-center gap-4">
-  //         <div className="h-12 w-12 rounded-full bg-muted" />
-  //         <div className="h-4 w-32 rounded bg-muted" />
-  //       </div>
-  //     </div>
-  //   );
-  // }
-
-  // if (user) {
-  //   return null;
-  // }
-
-  return null;
+export default async function HomePage() {
+  return redirect("/login");
   // <div className="min-h-screen bg-background">
   //   {/* Header */}
   //   <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">

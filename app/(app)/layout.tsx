@@ -1,37 +1,23 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import React from "react"
+import { createClient } from "@/lib/supabase/server";
+import { AppShell } from "@/components/layout/app-shell";
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { AuthProvider, useAuth } from '@/components/providers/auth-provider';
-import { AppShell } from '@/components/layout/app-shell';
+export async function ProtectedLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const supabase = await createClient();
 
-function ProtectedLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isAuthenticated || !user) {
-      router.push('/login');
-    }
-  }, [isAuthenticated, user, router]);
-
-  if (!isAuthenticated || !user) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-foreground" />
-      </div>
-    );
+  const { data, error } = await supabase.auth.getClaims();
+  if (error || !data?.claims) {
+    redirect("/auth/login");
   }
 
   return <AppShell>{children}</AppShell>;
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <AuthProvider>
-      <ProtectedLayout>{children}</ProtectedLayout>
-    </AuthProvider>
-  );
+  return <ProtectedLayout>{children}</ProtectedLayout>;
 }
