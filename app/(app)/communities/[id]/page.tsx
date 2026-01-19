@@ -1,19 +1,19 @@
 "use client";
 
-import { useState } from 'react';
-import { useParams } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
+import { useState } from "react";
+import { useParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 import {
   Users,
   Lock,
@@ -28,19 +28,20 @@ import {
   Bookmark,
   Flag,
   ImageIcon,
-} from 'lucide-react';
-import { useCommunityStore, usePostStore } from '@/lib/store';
-import { useAuth } from '@/components/providers/auth-provider';
-import { formatDistanceToNow } from 'date-fns';
-import { cn } from '@/lib/utils';
+} from "lucide-react";
+import { useCommunityStore, usePostStore } from "@/lib/store";
+import { useAuth } from "@/components/providers/auth-provider";
+import { formatDistanceToNow } from "date-fns";
+import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 export default function CommunityDetailPage() {
   const params = useParams();
   const { user } = useAuth();
   const { communities, joinCommunity, leaveCommunity } = useCommunityStore();
   const { posts, createPost, likePost } = usePostStore();
-  const [activeTab, setActiveTab] = useState('posts');
-  const [newPostContent, setNewPostContent] = useState('');
+  const [activeTab, setActiveTab] = useState("posts");
+  const [newPostContent, setNewPostContent] = useState("");
   const [isPosting, setIsPosting] = useState(false);
 
   const community = communities.find((c) => c.id === params.id);
@@ -65,7 +66,7 @@ export default function CommunityDetailPage() {
     setIsPosting(true);
     await new Promise((resolve) => setTimeout(resolve, 500));
     createPost({ content: newPostContent, communityId: community.id });
-    setNewPostContent('');
+    setNewPostContent("");
     setIsPosting(false);
   };
 
@@ -73,8 +74,12 @@ export default function CommunityDetailPage() {
     <div className="pb-20 lg:pb-0">
       {/* Cover Image */}
       <div className="relative h-32 sm:h-48 lg:h-64">
-        <ImageIcon src={community.coverImage || "/placeholder.svg"} alt={community.name} className="object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+        <ImageIcon
+          src={community.coverImage || "/placeholder.svg"}
+          alt={community.name}
+          className="object-cover"
+        />
+        <div className="absolute inset-0 bg-linear-to-t from-background via-transparent to-transparent" />
         <Button
           variant="ghost"
           size="icon"
@@ -92,10 +97,15 @@ export default function CommunityDetailPage() {
         <div className="relative -mt-12 sm:-mt-16">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-6">
             <Avatar className="h-24 w-24 border-4 border-background sm:h-32 sm:w-32">
-              <AvatarImage src={community.avatar || "/placeholder.svg"} alt={community.name} />
-              <AvatarFallback className="text-3xl">{community.name.charAt(0)}</AvatarFallback>
+              <AvatarImage
+                src={community.avatar || "/placeholder.svg"}
+                alt={community.name}
+              />
+              <AvatarFallback className="text-3xl">
+                {community.name.charAt(0)}
+              </AvatarFallback>
             </Avatar>
-            
+
             <div className="flex-1 sm:pb-2">
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold">{community.name}</h1>
@@ -119,10 +129,13 @@ export default function CommunityDetailPage() {
             <div className="flex gap-2 sm:pb-2">
               {community.isMember ? (
                 <>
-                  <Button variant="outline" onClick={() => leaveCommunity(community.id)}>
+                  <Button
+                    variant="outline"
+                    onClick={() => leaveCommunity(community.id)}
+                  >
                     Leave
                   </Button>
-                  {community.admins.includes(user?.id || '') && (
+                  {community.admins.includes(user?.id || "") && (
                     <Button variant="outline" size="icon">
                       <Settings className="h-4 w-4" />
                     </Button>
@@ -130,7 +143,7 @@ export default function CommunityDetailPage() {
                 </>
               ) : (
                 <Button onClick={() => joinCommunity(community.id)}>
-                  {community.isPrivate ? 'Request to Join' : 'Join Community'}
+                  {community.isPrivate ? "Request to Join" : "Join Community"}
                 </Button>
               )}
             </div>
@@ -140,7 +153,7 @@ export default function CommunityDetailPage() {
         {/* Description & Stats */}
         <div className="mt-6 space-y-4">
           <p className="text-foreground">{community.description}</p>
-          
+
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
               <Users className="h-4 w-4" />
@@ -180,7 +193,10 @@ export default function CommunityDetailPage() {
                 <CardContent className="pt-6">
                   <div className="flex gap-4">
                     <Avatar className="h-10 w-10">
-                      <AvatarImage src={user?.avatar || "/placeholder.svg"} alt={user?.name} />
+                      <AvatarImage
+                        src={user?.avatar || "/placeholder.svg"}
+                        alt={user?.name}
+                      />
                       <AvatarFallback>{user?.name?.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1 space-y-3">
@@ -200,7 +216,9 @@ export default function CommunityDetailPage() {
                           onClick={handleCreatePost}
                           disabled={!newPostContent.trim() || isPosting}
                         >
-                          {isPosting ? 'Posting...' : (
+                          {isPosting ? (
+                            "Posting..."
+                          ) : (
                             <>
                               <Send className="mr-2 h-4 w-4" />
                               Post
@@ -219,7 +237,9 @@ export default function CommunityDetailPage() {
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <MessageCircle className="mb-4 h-12 w-12 text-muted-foreground" />
-                  <p className="text-muted-foreground">No posts in this community yet</p>
+                  <p className="text-muted-foreground">
+                    No posts in this community yet
+                  </p>
                   {community.isMember && (
                     <p className="mt-2 text-sm text-muted-foreground">
                       Be the first to share something!
@@ -232,21 +252,37 @@ export default function CommunityDetailPage() {
                 <Card key={post.id}>
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
-                      <Link href={`/profile/${post.authorId}`} className="flex items-center gap-3">
+                      <Link
+                        href={`/profile/${post.authorId}`}
+                        className="flex items-center gap-3"
+                      >
                         <Avatar className="h-10 w-10">
-                          <AvatarImage src={post.author?.avatar || "/placeholder.svg"} alt={post.author?.name} />
-                          <AvatarFallback>{post.author?.name?.charAt(0)}</AvatarFallback>
+                          <AvatarImage
+                            src={post.author?.avatar || "/placeholder.svg"}
+                            alt={post.author?.name}
+                          />
+                          <AvatarFallback>
+                            {post.author?.name?.charAt(0)}
+                          </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium hover:underline">{post.author?.name}</p>
+                          <p className="font-medium hover:underline">
+                            {post.author?.name}
+                          </p>
                           <p className="text-xs text-muted-foreground">
-                            {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
+                            {formatDistanceToNow(new Date(post.createdAt), {
+                              addSuffix: true,
+                            })}
                           </p>
                         </div>
                       </Link>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                          >
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -265,12 +301,19 @@ export default function CommunityDetailPage() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <p className="whitespace-pre-wrap">{post.content}</p>
-                    
+
                     {post.images && post.images.length > 0 && (
                       <div className="grid gap-2">
                         {post.images.map((image, idx) => (
-                          <div key={idx} className="relative aspect-video overflow-hidden rounded-lg">
-                            <ImageIcon src={image || "/placeholder.svg"} alt="Post image" className="object-cover" />
+                          <div
+                            key={idx}
+                            className="relative aspect-video overflow-hidden rounded-lg"
+                          >
+                            <ImageIcon
+                              src={image || "/placeholder.svg"}
+                              alt="Post image"
+                              className="object-cover"
+                            />
                           </div>
                         ))}
                       </div>
@@ -280,10 +323,15 @@ export default function CommunityDetailPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className={cn(post.isLiked && 'text-red-500')}
+                        className={cn(post.isLiked && "text-red-500")}
                         onClick={() => likePost(post.id)}
                       >
-                        <Heart className={cn('mr-1 h-4 w-4', post.isLiked && 'fill-current')} />
+                        <Heart
+                          className={cn(
+                            "mr-1 h-4 w-4",
+                            post.isLiked && "fill-current",
+                          )}
+                        />
                         {post.likesCount}
                       </Button>
                       <Button variant="ghost" size="sm">
@@ -318,7 +366,7 @@ export default function CommunityDetailPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p>{community.description}</p>
-                
+
                 {community.rules.length > 0 && (
                   <div>
                     <h4 className="mb-2 font-medium">Community Rules</h4>
