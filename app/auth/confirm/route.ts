@@ -10,7 +10,23 @@ export async function GET(request: NextRequest) {
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
   const _next = searchParams.get("next");
-  const next = _next?.startsWith("/") ? _next : "/";
+
+  // const next = _next?.startsWith("/") ? _next : "/";
+
+  let next = "/";
+
+  if (_next) {
+    try {
+      const url = new URL(_next);
+      if (url.origin === process.env.NEXT_PUBLIC_SITE_URL) {
+        next = url.pathname + url.search;
+      }
+    } catch {
+      if (_next.startsWith("/")) {
+        next = _next;
+      }
+    }
+  }
 
   if (token_hash && type) {
     const supabase = await createClient();
