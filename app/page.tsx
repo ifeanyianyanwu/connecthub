@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 export default async function HomePage() {
-  return redirect("/login");
+  return redirect("/auth/login");
   // <div className="min-h-screen bg-background">
   //   {/* Header */}
   //   <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">

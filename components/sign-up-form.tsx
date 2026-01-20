@@ -57,7 +57,7 @@ export function SignUpForm({
         },
       });
       if (error) throw error;
-      router.push("/sign-up-success");
+      router.push("/auth/sign-up-success");
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {
@@ -147,7 +147,7 @@ export function SignUpForm({
               <div className="mt-4 text-center text-sm">
                 Already have an account?{" "}
                 <Link
-                  href="/login"
+                  href="/auth/login"
                   className="underline underline-offset-4"
                 >
                   Login
