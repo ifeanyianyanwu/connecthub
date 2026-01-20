@@ -47,13 +47,15 @@ export function SignUpForm({
       return;
     }
 
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
+
     try {
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: { display_name: fullName },
-          emailRedirectTo: `${window.location.origin}/onboarding`,
+          emailRedirectTo: `${baseUrl}/onboarding`,
         },
       });
       if (error) throw error;
