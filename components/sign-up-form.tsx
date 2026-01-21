@@ -31,21 +31,21 @@ export function SignUpForm({
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    const supabase = createClient();
-    setIsLoading(true);
-    setError(null);
 
     if (password !== repeatPassword) {
       setError("Passwords do not match");
-      setIsLoading(false);
+      setTimeout(() => setError(null), 5000);
       return;
     }
 
     if (password.length < 8) {
       setError("Password must be at least 8 characters");
-      setIsLoading(false);
+      setTimeout(() => setError(null), 5000);
       return;
     }
+
+    setIsLoading(true);
+    const supabase = createClient();
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
 

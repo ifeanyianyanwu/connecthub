@@ -172,6 +172,8 @@ export default function FeedPage() {
                       <Image
                         src={image || "/placeholder.svg"}
                         alt="Post image"
+                        width={500}
+                        height={500}
                         className="object-cover"
                       />
                     </div>
