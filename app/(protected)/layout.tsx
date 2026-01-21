@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
-import { AppShell } from "@/components/layout/app-shell";
 
-export async function ProtectedLayout({
+export default async function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -15,9 +14,5 @@ export async function ProtectedLayout({
     redirect("/auth/login");
   }
 
-  return <AppShell>{children}</AppShell>;
-}
-
-export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return <ProtectedLayout>{children}</ProtectedLayout>;
+  return <>{children}</>;
 }

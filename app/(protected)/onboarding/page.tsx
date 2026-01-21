@@ -43,7 +43,6 @@ export default function OnboardingPage() {
     bio: user?.bio || "",
     location: user?.location || "",
     interests: user?.interests || [],
-    goals: user?.goals || [],
   });
 
   const progress = ((currentStep + 1) / steps.length) * 100;
@@ -68,7 +67,6 @@ export default function OnboardingPage() {
       bio: formData.bio,
       location: formData.location,
       interests: formData.interests,
-      goals: formData.goals,
     });
     setIsLoading(false);
     router.push("/feed");
