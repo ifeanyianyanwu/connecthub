@@ -5,7 +5,7 @@ import { useCurrentUserImage } from "@/hooks/use-current-user-image";
 import { useCurrentUserName } from "@/hooks/use-current-user-name";
 
 export function CurrentUserAvatar() {
-  const profileImage = useCurrentUserImage();
+  const profilePicture = useCurrentUserImage();
   const name = useCurrentUserName();
 
   const initials = name
@@ -16,7 +16,7 @@ export function CurrentUserAvatar() {
 
   return (
     <Avatar>
-      {profileImage && <AvatarImage src={profileImage} alt={initials} />}
+      {profilePicture && <AvatarImage src={profilePicture} alt={initials} />}
       <AvatarFallback>{initials || "?"}</AvatarFallback>
     </Avatar>
   );

@@ -3,5 +3,5 @@ import { useCurrentUser } from "./use-current-user";
 export function useCurrentUserName() {
   const { user } = useCurrentUser();
 
-  return user?.user_metadata?.full_name || user?.email?.split("@")[0];
+  return user?.user_metadata?.full_name || user?.profile?.display_name;
 }

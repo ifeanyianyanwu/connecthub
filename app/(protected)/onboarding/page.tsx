@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { interestOptions } from "@/lib/mock-data";
 import { ArrowLeft, ArrowRight, Camera, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -45,7 +44,7 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
   const [hobbies, setHobbies] = useState<Hobby[]>([]);
 
-  const { user }: { user: User | null } = useCurrentUser();
+  const { user } = useCurrentUser();
 
   useEffect(() => {
     const fetchHobbies = async () => {
@@ -64,16 +63,29 @@ export default function OnboardingPage() {
     username: "",
     bio: "",
     location: "",
-    interests: [] as string[],
+    hobbies: [] as string[],
     avatarUrl: "",
   });
 
   const progress = ((currentStep + 1) / steps.length) * 100;
 
-  const handleNext = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
+  const handleNext = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (steps[currentStep].id === "profile") {
+      if (formData.username.length < 3) {
+        setError("Username must be at least 3 characters");
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
+
+      if (formData.avatarUrl.trim() === "") {
+        setError("Avatar must be uploaded");
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
     }
+    setCurrentStep(currentStep + 1);
   };
 
   const handleBack = () => {
@@ -97,7 +109,7 @@ export default function OnboardingPage() {
     }
 
     if (!user) {
-      setError("Not authenticated");
+      setError("Unauthenticated user cannot upload avatar");
       setTimeout(() => setError(null), 5000);
       return;
     }
@@ -142,39 +154,57 @@ export default function OnboardingPage() {
     e.target.value = "";
   };
 
-  const handleComplete = async () => {
+  const handleComplete = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (formData.hobbies.length < 2) {
+      setError("Please select at least 2 hobbies");
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    // updateUser({
-    //   username: formData.username,
-    //   bio: formData.bio,
-    //   location: formData.location,
-    //   interests: formData.interests,
-    //   avatar: formData.avatarUrl,
-    // });
-    setIsLoading(false);
-    return;
-    // router.push("/feed");
+    const supabase = createClient();
+
+    try {
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          username: formData.username,
+          bio: formData.bio,
+          profile_picture: formData.avatarUrl,
+        })
+        .eq("id", user!.id);
+
+      if (profileError) throw profileError;
+
+      const hobbyInserts = formData.hobbies.map((hobbyId) => ({
+        user_id: user!.id,
+        hobby_id: hobbyId,
+      }));
+
+      const { error: insertError } = await supabase
+        .from("user_hobbies")
+        .insert(hobbyInserts);
+
+      if (insertError) throw insertError;
+
+      setIsLoading(false);
+      router.push("/feed");
+      return;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+      setIsLoading(false);
+      return;
+    }
   };
 
   const toggleInterest = (interest: string) => {
     setFormData((prev) => ({
       ...prev,
-      interests: prev.interests.includes(interest)
-        ? prev.interests.filter((i) => i !== interest)
-        : [...prev.interests, interest],
+      hobbies: prev.hobbies.includes(interest)
+        ? prev.hobbies.filter((h) => h !== interest)
+        : [...prev.hobbies, interest],
     }));
-  };
-
-  const canProceed = () => {
-    switch (currentStep) {
-      case 0:
-        return formData.username.length >= 3;
-      case 1:
-        return formData.interests.length >= 3;
-      default:
-        return false;
-    }
   };
 
   return (
@@ -209,171 +239,177 @@ export default function OnboardingPage() {
             <CardDescription>{steps[currentStep].description}</CardDescription>
           </CardHeader>
           <CardContent>
-            {currentStep === 0 && (
-              <div className="space-y-6">
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
-                {/* Avatar */}
-                <div className="flex justify-center">
-                  <div className="relative">
-                    <Avatar className="h-24 w-24">
-                      <AvatarImage
-                        src={formData.avatarUrl || "/placeholder.svg"}
-                        alt={user?.user_metadata?.display_name || "User Avatar"}
-                      />
-                      <AvatarFallback className="text-2xl">
-                        {user?.user_metadata?.display_name?.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-transparent"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isUploadingAvatar}
-                      type="button"
-                    >
-                      {isUploadingAvatar ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Camera className="h-4 w-4" />
-                      )}
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleAvatarInputChange}
-                        className="hidden"
+            <form
+              onSubmit={(e) =>
+                currentStep === steps.length - 1
+                  ? handleComplete(e)
+                  : handleNext(e)
+              }
+            >
+              {currentStep === 0 && (
+                <div className="space-y-6">
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+                  {/* Avatar */}
+                  <div className="flex justify-center">
+                    <div className="relative">
+                      <Avatar className="h-24 w-24">
+                        <AvatarImage
+                          src={formData.avatarUrl || "/placeholder.svg"}
+                          alt={user?.profile?.display_name || "User Avatar"}
+                        />
+                        <AvatarFallback className="text-2xl">
+                          {user?.profile?.display_name?.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-transparent"
+                        onClick={() => fileInputRef.current?.click()}
                         disabled={isUploadingAvatar}
-                      />
-                      <span className="sr-only">Change avatar</span>
-                    </Button>
+                        type="button"
+                      >
+                        {isUploadingAvatar ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Camera className="h-4 w-4" />
+                        )}
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleAvatarInputChange}
+                          className="hidden"
+                          disabled={isUploadingAvatar}
+                        />
+                        <span className="sr-only">Change avatar</span>
+                      </Button>
+                    </div>
                   </div>
-                </div>
 
-                {/* Username */}
-                <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
-                  <div className="flex items-center">
-                    <span className="flex h-10 items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-sm text-muted-foreground">
-                      @
-                    </span>
-                    <Input
-                      id="username"
-                      placeholder="johndoe"
-                      className="rounded-l-none"
-                      value={formData.username}
+                  {/* Username */}
+                  <div className="space-y-2">
+                    <Label htmlFor="username">Username</Label>
+                    <div className="flex items-center">
+                      <span className="flex h-10 items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-sm text-muted-foreground">
+                        @
+                      </span>
+                      <Input
+                        id="username"
+                        placeholder="johndoe"
+                        className="rounded-l-none"
+                        value={formData.username}
+                        onChange={(e) =>
+                          setFormData({ ...formData, username: e.target.value })
+                        }
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      This is how others will find and mention you
+                    </p>
+                  </div>
+
+                  {/* Bio */}
+                  <div className="space-y-2">
+                    <Label htmlFor="bio">Bio</Label>
+                    <Textarea
+                      id="bio"
+                      placeholder="Tell us a bit about yourself..."
+                      rows={3}
+                      value={formData.bio}
                       onChange={(e) =>
-                        setFormData({ ...formData, username: e.target.value })
+                        setFormData({ ...formData, bio: e.target.value })
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {formData.bio.length}/160 characters
+                    </p>
+                  </div>
+
+                  {/* Location */}
+                  <div className="space-y-2">
+                    <Label htmlFor="location">Location</Label>
+                    <Input
+                      id="location"
+                      placeholder="San Francisco, CA"
+                      value={formData.location}
+                      onChange={(e) =>
+                        setFormData({ ...formData, location: e.target.value })
                       }
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    This is how others will find and mention you
-                  </p>
                 </div>
-
-                {/* Bio */}
-                <div className="space-y-2">
-                  <Label htmlFor="bio">Bio</Label>
-                  <Textarea
-                    id="bio"
-                    placeholder="Tell us a bit about yourself..."
-                    rows={3}
-                    value={formData.bio}
-                    onChange={(e) =>
-                      setFormData({ ...formData, bio: e.target.value })
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {formData.bio.length}/160 characters
-                  </p>
-                </div>
-
-                {/* Location */}
-                <div className="space-y-2">
-                  <Label htmlFor="location">Location</Label>
-                  <Input
-                    id="location"
-                    placeholder="San Francisco, CA"
-                    value={formData.location}
-                    onChange={(e) =>
-                      setFormData({ ...formData, location: e.target.value })
-                    }
-                  />
-                </div>
-              </div>
-            )}
-
-            {currentStep === 1 && (
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Select at least 3 hobbies to help us connect you with
-                  like-minded people
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {hobbies.map((hobby) => (
-                    <button
-                      key={hobby.id}
-                      onClick={() => toggleInterest(hobby.id)}
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm transition-colors",
-                        formData.interests.includes(hobby.id)
-                          ? "border-foreground bg-foreground text-background"
-                          : "border-border bg-background text-foreground hover:bg-muted",
-                      )}
-                    >
-                      {formData.interests.includes(hobby.id) && (
-                        <Check className="h-3 w-3" />
-                      )}
-                      {hobby.name}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Selected: {formData.interests.length} / 3 minimum
-                </p>
-              </div>
-            )}
-
-            {/* Navigation */}
-            <div className="mt-8 flex items-center justify-between">
-              <Button
-                variant="ghost"
-                onClick={handleBack}
-                disabled={currentStep === 0}
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
-
-              {currentStep < steps.length - 1 ? (
-                <Button onClick={handleNext} disabled={!canProceed()}>
-                  Continue
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleComplete}
-                  disabled={!canProceed() || isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Completing...
-                    </>
-                  ) : (
-                    <>
-                      Complete Setup
-                      <Check className="ml-2 h-4 w-4" />
-                    </>
-                  )}
-                </Button>
               )}
-            </div>
+
+              {currentStep === 1 && (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Select at least 2 hobbies to help us connect you with
+                    like-minded people
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {hobbies.map((hobby) => (
+                      <button
+                        key={hobby.id}
+                        type="button"
+                        onClick={() => toggleInterest(hobby.id)}
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm transition-colors",
+                          formData.hobbies.includes(hobby.id)
+                            ? "border-foreground bg-foreground text-background"
+                            : "border-border bg-background text-foreground hover:bg-muted",
+                        )}
+                      >
+                        {formData.hobbies.includes(hobby.id) && (
+                          <Check className="h-3 w-3" />
+                        )}
+                        {hobby.name}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Selected: {formData.hobbies.length} / 2 minimum
+                  </p>
+                </div>
+              )}
+
+              <div className="mt-8 flex items-center justify-between">
+                <Button
+                  variant="ghost"
+                  onClick={handleBack}
+                  disabled={currentStep === 0}
+                  type="button"
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back
+                </Button>
+
+                {currentStep < steps.length - 1 ? (
+                  <Button type="submit">
+                    Continue
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Completing...
+                      </>
+                    ) : (
+                      <>
+                        Complete Setup
+                        <Check className="ml-2 h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </form>
           </CardContent>
         </Card>
       </main>
