@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,10 +15,14 @@ import {
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { useAuthStore } from "@/lib/store";
 import { interestOptions } from "@/lib/mock-data";
 import { ArrowLeft, ArrowRight, Camera, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { User } from "@supabase/supabase-js";
+import { Hobby } from "@/lib/types";
 
 const steps = [
   {
@@ -35,14 +39,33 @@ const steps = [
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user, updateUser } = useAuthStore();
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hobbies, setHobbies] = useState<Hobby[]>([]);
+
+  const { user }: { user: User | null } = useCurrentUser();
+
+  useEffect(() => {
+    const fetchHobbies = async () => {
+      const supabase = createClient();
+      const { data: hobbies } = await supabase.from("hobbies").select("*");
+
+      if (hobbies) {
+        setHobbies(hobbies);
+      }
+    };
+    fetchHobbies();
+  }, []);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
-    username: user?.username || "",
-    bio: user?.bio || "",
-    location: user?.location || "",
-    interests: user?.interests || [],
+    username: "",
+    bio: "",
+    location: "",
+    interests: [] as string[],
+    avatarUrl: "",
   });
 
   const progress = ((currentStep + 1) / steps.length) * 100;
@@ -59,17 +82,79 @@ export default function OnboardingPage() {
     }
   };
 
+  const handleAvatarUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      setError("File must be an image");
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+
+    const MAX_FILE_SIZE = 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      setError("File size must not exceed 1MB");
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+
+    if (!user) {
+      setError("Not authenticated");
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    setError(null);
+
+    try {
+      const supabase = createClient();
+      const fileExt = file.name.split(".").pop();
+      const fileName = `avatar.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("user_avatars")
+        .upload(filePath, file, { upsert: true, cacheControl: "3600" });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("user_avatars")
+        .getPublicUrl(filePath);
+
+      setFormData((prev) => ({
+        ...prev,
+        avatarUrl: `${urlData.publicUrl}?t=${Date.now()}`,
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  const handleAvatarInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+
+    if (file) {
+      handleAvatarUpload(file);
+    }
+
+    e.target.value = "";
+  };
+
   const handleComplete = async () => {
     setIsLoading(true);
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    updateUser({
-      username: formData.username,
-      bio: formData.bio,
-      location: formData.location,
-      interests: formData.interests,
-    });
+    // updateUser({
+    //   username: formData.username,
+    //   bio: formData.bio,
+    //   location: formData.location,
+    //   interests: formData.interests,
+    //   avatar: formData.avatarUrl,
+    // });
     setIsLoading(false);
-    router.push("/feed");
+    return;
+    // router.push("/feed");
   };
 
   const toggleInterest = (interest: string) => {
@@ -126,24 +211,44 @@ export default function OnboardingPage() {
           <CardContent>
             {currentStep === 0 && (
               <div className="space-y-6">
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
                 {/* Avatar */}
                 <div className="flex justify-center">
                   <div className="relative">
                     <Avatar className="h-24 w-24">
                       <AvatarImage
-                        src={user?.avatar || "/placeholder.svg"}
-                        alt={user?.name}
+                        src={formData.avatarUrl || "/placeholder.svg"}
+                        alt={user?.user_metadata?.display_name || "User Avatar"}
                       />
                       <AvatarFallback className="text-2xl">
-                        {user?.name?.charAt(0)}
+                        {user?.user_metadata?.display_name?.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
                     <Button
                       size="icon"
                       variant="outline"
                       className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-transparent"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingAvatar}
+                      type="button"
                     >
-                      <Camera className="h-4 w-4" />
+                      {isUploadingAvatar ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Camera className="h-4 w-4" />
+                      )}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarInputChange}
+                        className="hidden"
+                        disabled={isUploadingAvatar}
+                      />
                       <span className="sr-only">Change avatar</span>
                     </Button>
                   </div>
@@ -206,25 +311,25 @@ export default function OnboardingPage() {
             {currentStep === 1 && (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Select at least 3 interests to help us connect you with
+                  Select at least 3 hobbies to help us connect you with
                   like-minded people
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {interestOptions.map((interest) => (
+                  {hobbies.map((hobby) => (
                     <button
-                      key={interest}
-                      onClick={() => toggleInterest(interest)}
+                      key={hobby.id}
+                      onClick={() => toggleInterest(hobby.id)}
                       className={cn(
                         "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm transition-colors",
-                        formData.interests.includes(interest)
+                        formData.interests.includes(hobby.id)
                           ? "border-foreground bg-foreground text-background"
                           : "border-border bg-background text-foreground hover:bg-muted",
                       )}
                     >
-                      {formData.interests.includes(interest) && (
+                      {formData.interests.includes(hobby.id) && (
                         <Check className="h-3 w-3" />
                       )}
-                      {interest}
+                      {hobby.name}
                     </button>
                   ))}
                 </div>

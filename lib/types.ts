@@ -1,27 +1,41 @@
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  username: string;
-  avatar: string;
-  bio: string;
-  location: string;
-  interests: string[];
-  goals: string[];
-  joinedAt: string;
-  isOnline: boolean;
-  lastActive: string;
-  connectionsCount: number;
-  communitiesCount: number;
-  role: 'user' | 'admin';
-  isVerified: boolean;
-  privacySettings: PrivacySettings;
-}
+import { Database } from "./database.types";
+import type { User } from "@supabase/supabase-js";
+
+export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+export type ProfileInsert = Database["public"]["Tables"]["profiles"]["Insert"];
+export type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
+
+export type Hobby = Database["public"]["Tables"]["hobbies"]["Row"];
+
+export type ProfileWithUser = Profile & {
+  user: User;
+};
+
+// Mock Data Types
+// export interface User {
+//   id: string;
+//   email: string;
+//   name: string;
+//   username: string;
+//   avatar: string;
+//   bio: string;
+//   location: string;
+//   interests: string[];
+//   goals: string[];
+//   joinedAt: string;
+//   isOnline: boolean;
+//   lastActive: string;
+//   connectionsCount: number;
+//   communitiesCount: number;
+//   role: 'user' | 'admin';
+//   isVerified: boolean;
+//   privacySettings: PrivacySettings;
+// }
 
 export interface PrivacySettings {
-  profileVisibility: 'public' | 'connections' | 'private';
+  profileVisibility: "public" | "connections" | "private";
   showOnlineStatus: boolean;
-  allowMessages: 'everyone' | 'connections' | 'none';
+  allowMessages: "everyone" | "connections" | "none";
   showLocation: boolean;
 }
 
@@ -29,7 +43,7 @@ export interface Connection {
   id: string;
   userId: string;
   connectedUserId: string;
-  status: 'pending' | 'accepted' | 'rejected';
+  status: "pending" | "accepted" | "rejected";
   createdAt: string;
   user?: User;
 }
@@ -46,7 +60,7 @@ export interface Message {
 
 export interface Attachment {
   id: string;
-  type: 'image' | 'file';
+  type: "image" | "file";
   url: string;
   name: string;
 }
@@ -103,7 +117,13 @@ export interface Comment {
 export interface Notification {
   id: string;
   userId: string;
-  type: 'connection_request' | 'connection_accepted' | 'message' | 'community_invite' | 'post_like' | 'comment';
+  type:
+    | "connection_request"
+    | "connection_accepted"
+    | "message"
+    | "community_invite"
+    | "post_like"
+    | "comment";
   title: string;
   message: string;
   isRead: boolean;
@@ -136,7 +156,7 @@ export interface Report {
   reportedCommunityId?: string;
   reason: string;
   description: string;
-  status: 'pending' | 'reviewed' | 'resolved' | 'dismissed';
+  status: "pending" | "reviewed" | "resolved" | "dismissed";
   createdAt: string;
   resolvedAt?: string;
   resolvedBy?: string;
