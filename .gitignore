@@ -20,6 +20,9 @@
 # production
 /build
 
+# seeding scripts
+/scripts/*.ts
+
 # misc
 .DS_Store
 *.pem
