@@ -100,7 +100,7 @@ export default function ConnectionsPage() {
                   {searchQuery ? 'No connections match your search' : 'No connections yet'}
                 </p>
                 <Button className="mt-4" asChild>
-                  <Link href="/discover">
+                  <Link href="/home">
                     <UserPlus className="mr-2 h-4 w-4" />
                     Find people to connect with
                   </Link>

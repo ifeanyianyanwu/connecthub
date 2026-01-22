@@ -178,60 +178,6 @@ export type Database = {
           },
         ]
       }
-      conversation_participants: {
-        Row: {
-          conversation_id: string
-          id: string
-          joined_at: string | null
-          user_id: string
-        }
-        Insert: {
-          conversation_id: string
-          id?: string
-          joined_at?: string | null
-          user_id: string
-        }
-        Update: {
-          conversation_id?: string
-          id?: string
-          joined_at?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "conversation_participants_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "conversations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "conversation_participants_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      conversations: {
-        Row: {
-          created_at: string | null
-          id: string
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
       hobbies: {
         Row: {
           category: string | null
@@ -295,38 +241,41 @@ export type Database = {
       messages: {
         Row: {
           content: string
-          conversation_id: string
+          created_at: string | null
           id: string
           read_at: string | null
+          receiver_id: string
           sender_id: string
           sent_at: string | null
         }
         Insert: {
           content: string
-          conversation_id: string
+          created_at?: string | null
           id?: string
           read_at?: string | null
+          receiver_id: string
           sender_id: string
           sent_at?: string | null
         }
         Update: {
           content?: string
-          conversation_id?: string
+          created_at?: string | null
           id?: string
           read_at?: string | null
+          receiver_id?: string
           sender_id?: string
           sent_at?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "messages_conversation_id_fkey"
-            columns: ["conversation_id"]
+            foreignKeyName: "messages_new_receiver_id_fkey"
+            columns: ["receiver_id"]
             isOneToOne: false
-            referencedRelation: "conversations"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "messages_sender_id_fkey"
+            foreignKeyName: "messages_new_sender_id_fkey"
             columns: ["sender_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -428,8 +377,10 @@ export type Database = {
           display_name: string | null
           email: string | null
           email_notifications: boolean | null
+          hobby_embedding: string | null
           id: string
           is_admin: boolean | null
+          location: string | null
           profile_picture: string | null
           profile_visible: boolean | null
           push_notifications: boolean | null
@@ -445,8 +396,10 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           email_notifications?: boolean | null
+          hobby_embedding?: string | null
           id: string
           is_admin?: boolean | null
+          location?: string | null
           profile_picture?: string | null
           profile_visible?: boolean | null
           push_notifications?: boolean | null
@@ -462,8 +415,10 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           email_notifications?: boolean | null
+          hobby_embedding?: string | null
           id?: string
           is_admin?: boolean | null
+          location?: string | null
           profile_picture?: string | null
           profile_visible?: boolean | null
           push_notifications?: boolean | null
@@ -569,7 +524,45 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_conversation_partner: {
+        Args: { other_user_id: string; user_id: string }
+        Returns: {
+          last_message: string
+          last_message_at: string
+          partner_id: string
+          unread_count: number
+        }[]
+      }
+      get_user_conversations: {
+        Args: { user_id: string }
+        Returns: {
+          last_message: string
+          last_message_at: string
+          last_message_is_mine: boolean
+          partner_display_name: string
+          partner_id: string
+          partner_profile_picture: string
+          partner_username: string
+          unread_count: number
+        }[]
+      }
+      get_weighted_recommendations: {
+        Args: { query_user_id: string }
+        Returns: {
+          ai_match_score: number
+          bio: string
+          display_name: string
+          exact_match_score: number
+          hobbies: string[]
+          id: string
+          location: string
+          mutual_count: number
+          profile_picture: string
+          shared_interests: string[]
+          total_score: number
+          username: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

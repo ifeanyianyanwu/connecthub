@@ -11,27 +11,6 @@ export type ProfileWithUser = Profile & {
   user: User;
 };
 
-// Mock Data Types
-// export interface User {
-//   id: string;
-//   email: string;
-//   name: string;
-//   username: string;
-//   avatar: string;
-//   bio: string;
-//   location: string;
-//   interests: string[];
-//   goals: string[];
-//   joinedAt: string;
-//   isOnline: boolean;
-//   lastActive: string;
-//   connectionsCount: number;
-//   communitiesCount: number;
-//   role: 'user' | 'admin';
-//   isVerified: boolean;
-//   privacySettings: PrivacySettings;
-// }
-
 export interface PrivacySettings {
   profileVisibility: "public" | "connections" | "private";
   showOnlineStatus: boolean;

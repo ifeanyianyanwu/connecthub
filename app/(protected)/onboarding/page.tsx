@@ -20,7 +20,6 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { User } from "@supabase/supabase-js";
 import { Hobby } from "@/lib/types";
 
 const steps = [
@@ -172,6 +171,7 @@ export default function OnboardingPage() {
           username: formData.username,
           bio: formData.bio,
           profile_picture: formData.avatarUrl,
+          location: formData.location,
         })
         .eq("id", user!.id);
 
@@ -188,8 +188,10 @@ export default function OnboardingPage() {
 
       if (insertError) throw insertError;
 
+      fetch("/api/update-profile-embedding", { method: "POST" });
+
       setIsLoading(false);
-      router.push("/feed");
+      router.push("/home");
       return;
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");

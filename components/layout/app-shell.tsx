@@ -25,7 +25,6 @@ import {
   Settings,
   LogOut,
   Menu,
-  Search,
   UserCircle,
   Shield,
   X,
@@ -38,8 +37,7 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { createClient } from "@/lib/supabase/client";
 
 const navigation = [
-  { name: "Feed", href: "/feed", icon: Home },
-  { name: "Discover", href: "/discover", icon: Search },
+  { name: "Home", href: "/home", icon: Home },
   { name: "Connections", href: "/connections", icon: Users },
   { name: "Messages", href: "/messages", icon: MessageCircle },
   { name: "Communities", href: "/communities", icon: Users },
@@ -68,7 +66,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="flex h-16 items-center border-b border-border px-6">
-            <Link href="/feed" className="flex items-center gap-2">
+            <Link href="/home" className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground">
                 <span className="text-sm font-bold text-background">CH</span>
               </div>
@@ -173,7 +171,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="flex h-full flex-col">
               <div className="flex h-16 items-center justify-between border-b border-border px-6">
                 <Link
-                  href="/feed"
+                  href="/home"
                   className="flex items-center gap-2"
                   onClick={() => setMobileMenuOpen(false)}
                 >
@@ -275,7 +273,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </SheetContent>
         </Sheet>
 
-        <Link href="/feed" className="flex items-center gap-2">
+        <Link href="/home" className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground">
             <span className="text-sm font-bold text-background">CH</span>
           </div>
