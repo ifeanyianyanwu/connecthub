@@ -6,6 +6,10 @@ export type ProfileInsert = Database["public"]["Tables"]["profiles"]["Insert"];
 export type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
 
 export type Hobby = Database["public"]["Tables"]["hobbies"]["Row"];
+export type Connection = Database["public"]["Tables"]["connections"]["Row"] & {
+  user1_profile?: Profile | null;
+  user2_profile?: Profile | null;
+};
 
 export type ProfileWithUser = Profile & {
   user: User;
@@ -16,15 +20,6 @@ export interface PrivacySettings {
   showOnlineStatus: boolean;
   allowMessages: "everyone" | "connections" | "none";
   showLocation: boolean;
-}
-
-export interface Connection {
-  id: string;
-  userId: string;
-  connectedUserId: string;
-  status: "pending" | "accepted" | "rejected";
-  createdAt: string;
-  user?: User;
 }
 
 export interface Message {
