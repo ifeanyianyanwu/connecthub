@@ -28,6 +28,7 @@ import {
   UserCircle,
   Shield,
   X,
+  EllipsisVertical,
 } from "lucide-react";
 
 import { useNotificationStore } from "@/lib/store";
@@ -130,6 +131,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       @{user?.profile?.username}
                     </p>
                   </div>
+                  <EllipsisVertical className="ml-auto h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">

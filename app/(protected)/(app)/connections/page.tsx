@@ -148,7 +148,7 @@ export default function ConnectionsPage() {
       // Move from pending to accepted in local state for immediate feedback
       setPendingRequests((prev) => prev.filter((r) => r.id !== requestId));
       setConnections((prev) => [...prev, data]);
-    } catch (error) {
+    } catch {
       toast.error("Could not accept request");
     } finally {
       setActionLoading(null);
@@ -165,7 +165,7 @@ export default function ConnectionsPage() {
       if (error) throw error;
       setPendingRequests((prev) => prev.filter((r) => r.id !== requestId));
       toast.success("Request declined");
-    } catch (error) {
+    } catch {
       toast.error("Error declining request");
     } finally {
       setActionLoading(null);
@@ -183,7 +183,7 @@ export default function ConnectionsPage() {
       if (error) throw error;
       setConnections((prev) => prev.filter((c) => c.id !== connectionId));
       toast.success("Connection removed");
-    } catch (error) {
+    } catch {
       toast.error("Error removing connection");
     } finally {
       setActionLoading(null);

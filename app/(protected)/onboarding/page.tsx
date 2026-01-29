@@ -21,6 +21,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Hobby } from "@/lib/types";
+import { useHandleAvatarUpload } from "@/hooks/use-handle-avatar-upload";
 
 const steps = [
   {
@@ -39,11 +40,12 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
   const [hobbies, setHobbies] = useState<Hobby[]>([]);
 
   const { user } = useCurrentUser();
+  const { handleAvatarUpload, isUploadingAvatar } = useHandleAvatarUpload();
 
   useEffect(() => {
     const fetchHobbies = async () => {
@@ -93,61 +95,18 @@ export default function OnboardingPage() {
     }
   };
 
-  const handleAvatarUpload = async (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      setError("File must be an image");
-      setTimeout(() => setError(null), 5000);
-      return;
-    }
-
-    const MAX_FILE_SIZE = 1024 * 1024;
-    if (file.size > MAX_FILE_SIZE) {
-      setError("File size must not exceed 1MB");
-      setTimeout(() => setError(null), 5000);
-      return;
-    }
-
-    if (!user) {
-      setError("Unauthenticated user cannot upload avatar");
-      setTimeout(() => setError(null), 5000);
-      return;
-    }
-
-    setIsUploadingAvatar(true);
-    setError(null);
-
-    try {
-      const supabase = createClient();
-      const fileExt = file.name.split(".").pop();
-      const fileName = `avatar.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("user_avatars")
-        .upload(filePath, file, { upsert: true, cacheControl: "3600" });
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from("user_avatars")
-        .getPublicUrl(filePath);
-
-      setFormData((prev) => ({
-        ...prev,
-        avatarUrl: `${urlData.publicUrl}?t=${Date.now()}`,
-      }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
-    } finally {
-      setIsUploadingAvatar(false);
-    }
-  };
-
-  const handleAvatarInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarInputChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = e.target.files?.[0];
 
     if (file) {
-      handleAvatarUpload(file);
+      const url = await handleAvatarUpload(file);
+
+      setFormData((prev) => ({
+        ...prev,
+        avatarUrl: url || "",
+      }));
     }
 
     e.target.value = "";

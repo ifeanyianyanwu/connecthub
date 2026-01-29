@@ -1,48 +1,110 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   MapPin,
   Calendar,
-  Users,
-  Edit,
-  Settings,
   CheckCircle,
   Grid,
   BookOpen,
-  Heart,
+  Loader2,
 } from "lucide-react";
-import { useAuth } from "@/components/providers/auth-provider";
-import {
-  usePostStore,
-  useConnectionStore,
-  useCommunityStore,
-} from "@/lib/store";
 import { formatDistanceToNow, format } from "date-fns";
-import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { useCurrentUserHobbies } from "@/hooks/use-current-user-hobbies";
+
+type Post = {
+  id: string;
+  content: string;
+  images: string[] | null;
+  likesCount: number;
+  commentsCount: number;
+  createdAt: string;
+};
 
 export default function ProfilePage() {
-  const { user } = useAuth();
-  const { posts } = usePostStore();
-  const { connections } = useConnectionStore();
-  const { communities } = useCommunityStore();
-  const [activeTab, setActiveTab] = useState("posts");
+  const { user: authUser } = useCurrentUser();
+  const { hobbies } = useCurrentUserHobbies();
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const userPosts = posts.filter((post) => post.authorId === user?.id);
-  const userCommunities = communities.filter((c) => c.isMember);
+  const supabase = createClient();
 
-  if (!user) return null;
+  useEffect(() => {
+    if (!authUser) return;
+
+    const fetchData = async () => {
+      setLoading(true);
+
+      // Fetch posts
+      const { data, error } = await supabase
+        .from("posts")
+        .select(
+          `id,
+          content,
+          image_url,
+          created_at,
+          likes(id),
+          comments(id)`,
+        )
+        .eq("user_id", authUser.id)
+        .order("created_at", { ascending: false });
+
+      // Transform to add counts
+      const postsWithCounts = data?.map((post) => ({
+        id: post.id,
+        content: post.content,
+        images: post.image_url ? [post.image_url] : [],
+        createdAt: post.created_at || new Date().toISOString(),
+        likesCount: post.likes?.length || 0,
+        commentsCount: post.comments?.length || 0,
+      }));
+
+      if (error) {
+        console.error("Error fetching posts", error);
+      } else {
+        setPosts(postsWithCounts || []);
+      }
+
+      setLoading(false);
+    };
+
+    fetchData();
+  }, [authUser, supabase]);
+
+  if (loading) {
+    return (
+      <div className="flex h-full w-full items-center justify-center">
+        <Loader2 className="h-10 w-10 animate-spin" />
+      </div>
+    );
+  }
+
+  const user = {
+    id: authUser?.profile?.id,
+    name:
+      authUser?.profile?.display_name ||
+      authUser?.profile?.username ||
+      "Anonymous",
+    username: authUser?.profile?.username || "anonymous",
+    avatar: authUser?.profile?.profile_picture,
+    isVerified: authUser?.profile?.is_admin,
+    bio: authUser?.profile?.bio,
+    location: authUser?.profile?.location,
+    joinedAt: authUser?.profile?.created_at || new Date().toISOString(),
+    interests: hobbies.map((h) => h.name),
+  };
 
   return (
     <div className="pb-20 lg:pb-0">
       {/* Cover Image */}
-      <div className="relative h-32 bg-gradient-to-r from-neutral-800 to-neutral-600 sm:h-48">
+      <div className="relative h-32 bg-linear-to-r from-neutral-800 to-neutral-600 sm:h-48">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(255,255,255,0.1),transparent)]" />
       </div>
 
@@ -69,21 +131,6 @@ export default function ProfilePage() {
               </div>
               <p className="text-muted-foreground">@{user.username}</p>
             </div>
-
-            <div className="mt-4 flex gap-2 sm:mt-0 sm:pb-4">
-              <Button variant="outline" asChild>
-                <Link href="/settings">
-                  <Settings className="mr-2 h-4 w-4" />
-                  Settings
-                </Link>
-              </Button>
-              <Button asChild>
-                <Link href="/settings/profile">
-                  <Edit className="mr-2 h-4 w-4" />
-                  Edit Profile
-                </Link>
-              </Button>
-            </div>
           </div>
         </div>
 
@@ -104,20 +151,6 @@ export default function ProfilePage() {
             </span>
           </div>
 
-          {/* Stats */}
-          <div className="flex gap-6">
-            <Link href="/connections" className="group">
-              <span className="font-semibold">{user.connectionsCount}</span>
-              <span className="ml-1 text-muted-foreground group-hover:underline">
-                Connections
-              </span>
-            </Link>
-            <span>
-              <span className="font-semibold">{user.communitiesCount}</span>
-              <span className="ml-1 text-muted-foreground">Communities</span>
-            </span>
-          </div>
-
           {/* Interests */}
           <div className="flex flex-wrap gap-2">
             {user.interests.map((interest) => (
@@ -129,7 +162,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-8">
+        <Tabs defaultValue="posts" className="mt-8">
           <TabsList className="w-full justify-start border-b border-border bg-transparent p-0">
             <TabsTrigger
               value="posts"
@@ -138,36 +171,19 @@ export default function ProfilePage() {
               <Grid className="mr-2 h-4 w-4" />
               Posts
             </TabsTrigger>
-            <TabsTrigger
-              value="communities"
-              className="rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-foreground data-[state=active]:bg-transparent"
-            >
-              <Users className="mr-2 h-4 w-4" />
-              Communities
-            </TabsTrigger>
-            <TabsTrigger
-              value="connections"
-              className="rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-foreground data-[state=active]:bg-transparent"
-            >
-              <Heart className="mr-2 h-4 w-4" />
-              Connections
-            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="posts" className="mt-6">
-            {userPosts.length === 0 ? (
+            {posts.length === 0 ? (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <BookOpen className="mb-4 h-12 w-12 text-muted-foreground" />
                   <p className="text-muted-foreground">No posts yet</p>
-                  <Button className="mt-4" asChild>
-                    <Link href="/communities">Create your first post</Link>
-                  </Button>
                 </CardContent>
               </Card>
             ) : (
               <div className="space-y-4">
-                {userPosts.map((post) => (
+                {posts.map((post) => (
                   <Card key={post.id}>
                     <CardContent className="pt-6">
                       <p className="whitespace-pre-wrap">{post.content}</p>
@@ -200,107 +216,6 @@ export default function ProfilePage() {
                     </CardContent>
                   </Card>
                 ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="communities" className="mt-6">
-            {userCommunities.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <Users className="mb-4 h-12 w-12 text-muted-foreground" />
-                  <p className="text-muted-foreground">
-                    Not a member of any communities yet
-                  </p>
-                  <Button className="mt-4" asChild>
-                    <Link href="/communities">Explore communities</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {userCommunities.map((community) => (
-                  <Card key={community.id} className="overflow-hidden">
-                    <Link href={`/communities/${community.id}`}>
-                      <div className="relative h-24">
-                        <Image
-                          src={community.coverImage || "/placeholder.svg"}
-                          alt={community.name}
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                      <CardHeader className="pb-2">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarImage
-                              src={community.avatar || "/placeholder.svg"}
-                              alt={community.name}
-                            />
-                            <AvatarFallback>
-                              {community.name.charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <CardTitle className="text-base">
-                              {community.name}
-                            </CardTitle>
-                            <p className="text-xs text-muted-foreground">
-                              {community.memberCount.toLocaleString()} members
-                            </p>
-                          </div>
-                        </div>
-                      </CardHeader>
-                    </Link>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="connections" className="mt-6">
-            {connections.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <Users className="mb-4 h-12 w-12 text-muted-foreground" />
-                  <p className="text-muted-foreground">No connections yet</p>
-                  <Button className="mt-4" asChild>
-                    <Link href="/home">Find people to connect with</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {connections.slice(0, 6).map((connection) => (
-                  <Card key={connection.id}>
-                    <CardContent className="flex items-center gap-3 pt-6">
-                      <Avatar className="h-12 w-12">
-                        <AvatarImage
-                          src={connection.user?.avatar || "/placeholder.svg"}
-                          alt={connection.user?.name}
-                        />
-                        <AvatarFallback>
-                          {connection.user?.name?.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 truncate">
-                        <p className="font-medium truncate">
-                          {connection.user?.name}
-                        </p>
-                        <p className="text-sm text-muted-foreground truncate">
-                          @{connection.user?.username}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-            {connections.length > 6 && (
-              <div className="mt-4 text-center">
-                <Button variant="outline" asChild>
-                  <Link href="/connections">View all connections</Link>
-                </Button>
               </div>
             )}
           </TabsContent>
