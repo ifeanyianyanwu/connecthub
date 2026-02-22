@@ -10,6 +10,7 @@ export type Connection = Database["public"]["Tables"]["connections"]["Row"] & {
   user1_profile?: Profile | null;
   user2_profile?: Profile | null;
 };
+export type Message = Database["public"]["Tables"]["messages"]["Row"];
 
 export type ProfileWithUser = Profile & {
   user: User;
@@ -20,16 +21,6 @@ export interface PrivacySettings {
   showOnlineStatus: boolean;
   allowMessages: "everyone" | "connections" | "none";
   showLocation: boolean;
-}
-
-export interface Message {
-  id: string;
-  conversationId: string;
-  senderId: string;
-  content: string;
-  createdAt: string;
-  isRead: boolean;
-  attachments?: Attachment[];
 }
 
 export interface Attachment {

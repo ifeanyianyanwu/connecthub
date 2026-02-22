@@ -332,7 +332,7 @@ export default function DiscoverPage() {
                   <CardContent className="pt-6">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <Link
-                        href={`/profile/${user.id}`}
+                        href={`/user/${user.id}`}
                         className="flex items-start gap-4"
                       >
                         <Avatar className="h-16 w-16">
@@ -439,7 +439,7 @@ export default function DiscoverPage() {
                 <CardContent className="pt-6">
                   <div className="flex items-start justify-between gap-4">
                     <Link
-                      href={`/profile/${user.id}`}
+                      href={`/user/${user.id}`}
                       className="flex items-start gap-3"
                     >
                       <Avatar className="h-12 w-12">
