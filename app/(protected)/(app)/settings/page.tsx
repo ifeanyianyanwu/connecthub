@@ -1,23 +1,20 @@
 "use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,80 +25,230 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { useAuth } from '@/components/providers/auth-provider';
-import { interestOptions } from '@/lib/mock-data';
+} from "@/components/ui/alert-dialog";
 import {
   User,
-  Shield,
   Bell,
   Palette,
   Camera,
   Loader2,
   Check,
-  X,
   Trash2,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { createClient } from "@/lib/supabase/client";
+import { useCurrentUserHobbies } from "@/hooks/use-current-user-hobbies";
+import { useHandleAvatarUpload } from "@/hooks/use-handle-avatar-upload";
+import { Hobby } from "@/lib/types";
+
+type ProfileData = {
+  name: string;
+  username: string;
+  email: string;
+  bio: string;
+  location: string;
+  profilePicture: string;
+};
 
 export default function SettingsPage() {
-  const { user, updateUser, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState('profile');
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  
-  const [profileData, setProfileData] = useState({
-    name: user?.name || '',
-    username: user?.username || '',
-    email: user?.email || '',
-    bio: user?.bio || '',
-    location: user?.location || '',
-    interests: user?.interests || [],
-  });
+  const { user, loading } = useCurrentUser();
+  const { handleAvatarUpload, isUploadingAvatar } = useHandleAvatarUpload();
+  const { hobbies: userHobbies } = useCurrentUserHobbies();
+  const [activeTab, setActiveTab] = useState("profile");
+  const [selectedAvatarFile, setSelectedAvatarFile] = useState<File | null>(
+    null,
+  );
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [userHobbiesState, setUserHobbiesState] = useState<string[]>([]);
+  const [hobbiesState, setHobbiesState] = useState<Hobby[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<
+    "profile" | "notifications" | null
+  >(null);
 
-  const [privacySettings, setPrivacySettings] = useState({
-    profileVisibility: user?.privacySettings?.profileVisibility || 'public',
-    showOnlineStatus: user?.privacySettings?.showOnlineStatus ?? true,
-    allowMessages: user?.privacySettings?.allowMessages || 'everyone',
-    showLocation: user?.privacySettings?.showLocation ?? true,
-  });
-
+  const [profileData, setProfileData] = useState<ProfileData>(
+    {} as ProfileData,
+  );
   const [notificationSettings, setNotificationSettings] = useState({
-    emailNotifications: true,
     pushNotifications: true,
-    connectionRequests: true,
-    messages: true,
-    communityUpdates: true,
-    postLikes: false,
-    comments: true,
   });
+  const supabase = createClient();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchHobbies = async () => {
+      const { data: hobbies } = await supabase.from("hobbies").select("*");
+      setHobbiesState(hobbies || []);
+
+      setIsLoading(false);
+    };
+
+    const updateLocalState = () => {
+      setProfileData(() => ({
+        profilePicture: user?.profile?.profile_picture || "",
+        name: user?.profile?.display_name || "",
+        username: user?.profile?.username || "",
+        email: user?.profile?.email || "",
+        bio: user?.profile?.bio || "",
+        location: user?.profile?.location || "",
+      }));
+      setUserHobbiesState(userHobbies.map((h) => h.id));
+      setNotificationSettings({
+        pushNotifications: user?.profile?.push_notifications ?? true,
+      });
+    };
+
+    updateLocalState();
+    fetchHobbies();
+  }, [user, userHobbies, supabase]);
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) {
+        URL.revokeObjectURL(avatarPreview);
+      }
+    };
+  }, [avatarPreview]);
 
   const handleSaveProfile = async () => {
-    setIsSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    updateUser(profileData);
-    setIsSaving(false);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2000);
+    setActionLoading("profile");
+    try {
+      const hobbyInserts = userHobbiesState.map((hobbyId) => ({
+        user_id: user!.id,
+        hobby_id: hobbyId,
+      }));
+
+      let uploadedAvatarUrl = profileData.profilePicture; // Keep existing URL if no new file
+
+      // Upload new avatar if one was selected
+      if (selectedAvatarFile) {
+        uploadedAvatarUrl = (await handleAvatarUpload(
+          selectedAvatarFile,
+        )) as string;
+
+        // Clean up the preview blob
+        if (avatarPreview) {
+          URL.revokeObjectURL(avatarPreview);
+          setAvatarPreview(null);
+        }
+      }
+
+      const [deleteRes, profileRes] = await Promise.all([
+        supabase.from("user_hobbies").delete().eq("user_id", user!.id),
+        supabase
+          .from("profiles")
+          .update({
+            profile_picture: uploadedAvatarUrl,
+            display_name: profileData.name,
+            username: profileData.username,
+            bio: profileData.bio,
+            location: profileData.location,
+          })
+          .eq("id", user!.id)
+          .select(),
+      ]);
+
+      if (deleteRes.error) {
+        console.error("Error updating hobbies", deleteRes.error);
+        throw deleteRes.error;
+      }
+
+      if (profileRes.error) {
+        console.error("Error updating profile", profileRes.error);
+        throw profileRes.error;
+      }
+
+      const hobbiesRes = await supabase
+        .from("user_hobbies")
+        .insert(hobbyInserts);
+
+      if (hobbiesRes.error) {
+        console.error("Error updating hobbies", hobbiesRes.error);
+        throw hobbiesRes.error;
+      }
+
+      setProfileData((prev) => ({
+        ...prev,
+        name: profileRes.data![0].display_name!,
+        username: profileRes.data![0].username!,
+        bio: profileRes.data![0].bio!,
+        location: profileRes.data![0].location!,
+      }));
+
+      if (userHobbiesState.sort().toString() !== userHobbies.sort().toString())
+        fetch("/api/update-profile-embedding", { method: "POST" });
+    } catch (error) {
+      console.error("Error updating profile", error);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleSavePrivacy = async () => {
-    setIsSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    updateUser({ privacySettings });
-    setIsSaving(false);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2000);
+  const togglePushNotifications = async (value: boolean) => {
+    setActionLoading("notifications");
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          push_notifications: value,
+        })
+        .eq("id", user!.id);
+
+      if (error) {
+        console.error("Error updating notification settings", error);
+        throw error;
+      } else {
+        setNotificationSettings((prev) => ({
+          ...prev,
+          pushNotifications: value,
+        }));
+      }
+    } catch (error) {
+      console.error("Error updating notification settings", error);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const toggleInterest = (interest: string) => {
-    setProfileData((prev) => ({
-      ...prev,
-      interests: prev.interests.includes(interest)
-        ? prev.interests.filter((i) => i !== interest)
-        : [...prev.interests, interest],
-    }));
+  const handleAvatarInputChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+
+    if (file) {
+      setSelectedAvatarFile(file);
+
+      const blobUrl = URL.createObjectURL(file);
+      setAvatarPreview(blobUrl);
+
+      setProfileData((prev) => ({
+        ...prev,
+        profilePicture: blobUrl,
+      }));
+    }
+
+    e.target.value = "";
   };
+
+  const toggleHobby = (interest: string) => {
+    setUserHobbiesState((prev) => {
+      if (prev.includes(interest)) {
+        return prev.filter((i) => i !== interest);
+      }
+      return [...prev, interest];
+    });
+  };
+  if (loading || isLoading) {
+    return (
+      <div className="flex h-full w-full items-center justify-center">
+        <Loader2 className="h-10 w-10 animate-spin" />
+      </div>
+    );
+  }
 
   if (!user) return null;
 
@@ -109,7 +256,9 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-4xl px-4 py-6 pb-20 lg:pb-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-muted-foreground">Manage your account settings and preferences</p>
+        <p className="text-muted-foreground">
+          Manage your account settings and preferences
+        </p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -117,10 +266,6 @@ export default function SettingsPage() {
           <TabsTrigger value="profile" className="gap-2">
             <User className="h-4 w-4" />
             <span className="hidden sm:inline">Profile</span>
-          </TabsTrigger>
-          <TabsTrigger value="privacy" className="gap-2">
-            <Shield className="h-4 w-4" />
-            <span className="hidden sm:inline">Privacy</span>
           </TabsTrigger>
           <TabsTrigger value="notifications" className="gap-2">
             <Bell className="h-4 w-4" />
@@ -141,14 +286,31 @@ export default function SettingsPage() {
             <CardContent>
               <div className="flex items-center gap-4">
                 <Avatar className="h-20 w-20">
-                  <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
-                  <AvatarFallback className="text-2xl">{user.name.charAt(0)}</AvatarFallback>
+                  <AvatarImage
+                    src={profileData.profilePicture || "/placeholder.svg"}
+                    alt={profileData.name || "User Avatar"}
+                  />
+                  <AvatarFallback className="text-2xl">
+                    {profileData.name?.charAt(0) || "U"}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="space-y-2">
-                  <Button variant="outline" size="sm">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
                     <Camera className="mr-2 h-4 w-4" />
                     Change Photo
                   </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarInputChange}
+                    className="hidden"
+                    disabled={isUploadingAvatar}
+                  />
                   <p className="text-xs text-muted-foreground">
                     JPG, PNG or GIF. Max size 2MB.
                   </p>
@@ -169,7 +331,9 @@ export default function SettingsPage() {
                   <Input
                     id="name"
                     value={profileData.name}
-                    onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                    onChange={(e) =>
+                      setProfileData({ ...profileData, name: e.target.value })
+                    }
                   />
                 </div>
                 <div className="space-y-2">
@@ -182,7 +346,12 @@ export default function SettingsPage() {
                       id="username"
                       className="rounded-l-none"
                       value={profileData.username}
-                      onChange={(e) => setProfileData({ ...profileData, username: e.target.value })}
+                      onChange={(e) =>
+                        setProfileData({
+                          ...profileData,
+                          username: e.target.value,
+                        })
+                      }
                     />
                   </div>
                 </div>
@@ -191,10 +360,11 @@ export default function SettingsPage() {
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
+                  readOnly
+                  disabled
                   id="email"
                   type="email"
                   value={profileData.email}
-                  onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
                 />
               </div>
 
@@ -204,7 +374,9 @@ export default function SettingsPage() {
                   id="bio"
                   rows={3}
                   value={profileData.bio}
-                  onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
+                  onChange={(e) =>
+                    setProfileData({ ...profileData, bio: e.target.value })
+                  }
                 />
                 <p className="text-xs text-muted-foreground">
                   {profileData.bio.length}/160 characters
@@ -216,7 +388,9 @@ export default function SettingsPage() {
                 <Input
                   id="location"
                   value={profileData.location}
-                  onChange={(e) => setProfileData({ ...profileData, location: e.target.value })}
+                  onChange={(e) =>
+                    setProfileData({ ...profileData, location: e.target.value })
+                  }
                 />
               </div>
             </CardContent>
@@ -225,23 +399,27 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Interests</CardTitle>
-              <CardDescription>Select topics you are interested in</CardDescription>
+              <CardDescription>
+                Select hobbies you are interested in
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2">
-                {interestOptions.map((interest) => (
+                {hobbiesState.map((h) => (
                   <button
-                    key={interest}
-                    onClick={() => toggleInterest(interest)}
+                    key={h.id}
+                    onClick={() => toggleHobby(h.id)}
                     className={cn(
-                      'inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm transition-colors',
-                      profileData.interests.includes(interest)
-                        ? 'border-foreground bg-foreground text-background'
-                        : 'border-border bg-background text-foreground hover:bg-muted'
+                      "inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm transition-colors",
+                      userHobbiesState.includes(h.id)
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-border bg-background text-foreground hover:bg-muted",
                     )}
                   >
-                    {profileData.interests.includes(interest) && <Check className="h-3 w-3" />}
-                    {interest}
+                    {userHobbiesState.includes(h.id) && (
+                      <Check className="h-3 w-3" />
+                    )}
+                    {h.name}
                   </button>
                 ))}
               </div>
@@ -250,116 +428,17 @@ export default function SettingsPage() {
 
           <div className="flex justify-end gap-2">
             <Button variant="outline">Cancel</Button>
-            <Button onClick={handleSaveProfile} disabled={isSaving}>
-              {isSaving ? (
+            <Button
+              onClick={handleSaveProfile}
+              disabled={actionLoading === "profile"}
+            >
+              {actionLoading === "profile" ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Saving...
                 </>
-              ) : saveSuccess ? (
-                <>
-                  <Check className="mr-2 h-4 w-4" />
-                  Saved
-                </>
               ) : (
-                'Save Changes'
-              )}
-            </Button>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="privacy" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Profile Visibility</CardTitle>
-              <CardDescription>Control who can see your profile</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Who can see your profile?</Label>
-                <Select
-                  value={privacySettings.profileVisibility}
-                  onValueChange={(value: 'public' | 'connections' | 'private') =>
-                    setPrivacySettings({ ...privacySettings, profileVisibility: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="public">Everyone</SelectItem>
-                    <SelectItem value="connections">Connections only</SelectItem>
-                    <SelectItem value="private">Only me</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Show online status</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Let others see when you are online
-                  </p>
-                </div>
-                <Switch
-                  checked={privacySettings.showOnlineStatus}
-                  onCheckedChange={(checked) =>
-                    setPrivacySettings({ ...privacySettings, showOnlineStatus: checked })
-                  }
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Show location</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Display your location on your profile
-                  </p>
-                </div>
-                <Switch
-                  checked={privacySettings.showLocation}
-                  onCheckedChange={(checked) =>
-                    setPrivacySettings({ ...privacySettings, showLocation: checked })
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Who can send you messages?</Label>
-                <Select
-                  value={privacySettings.allowMessages}
-                  onValueChange={(value: 'everyone' | 'connections' | 'none') =>
-                    setPrivacySettings({ ...privacySettings, allowMessages: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="everyone">Everyone</SelectItem>
-                    <SelectItem value="connections">Connections only</SelectItem>
-                    <SelectItem value="none">No one</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-end gap-2">
-            <Button variant="outline">Cancel</Button>
-            <Button onClick={handleSavePrivacy} disabled={isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : saveSuccess ? (
-                <>
-                  <Check className="mr-2 h-4 w-4" />
-                  Saved
-                </>
-              ) : (
-                'Save Changes'
+                "Save Changes"
               )}
             </Button>
           </div>
@@ -369,24 +448,11 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Notification Preferences</CardTitle>
-              <CardDescription>Choose how you want to be notified</CardDescription>
+              <CardDescription>
+                Choose how you want to be notified
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Email Notifications</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Receive notifications via email
-                  </p>
-                </div>
-                <Switch
-                  checked={notificationSettings.emailNotifications}
-                  onCheckedChange={(checked) =>
-                    setNotificationSettings({ ...notificationSettings, emailNotifications: checked })
-                  }
-                />
-              </div>
-
               <div className="flex items-center justify-between">
                 <div>
                   <Label>Push Notifications</Label>
@@ -397,66 +463,9 @@ export default function SettingsPage() {
                 <Switch
                   checked={notificationSettings.pushNotifications}
                   onCheckedChange={(checked) =>
-                    setNotificationSettings({ ...notificationSettings, pushNotifications: checked })
+                    togglePushNotifications(checked)
                   }
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Activity Notifications</CardTitle>
-              <CardDescription>Choose which activities to be notified about</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label>Connection requests</Label>
-                <Switch
-                  checked={notificationSettings.connectionRequests}
-                  onCheckedChange={(checked) =>
-                    setNotificationSettings({ ...notificationSettings, connectionRequests: checked })
-                  }
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <Label>Messages</Label>
-                <Switch
-                  checked={notificationSettings.messages}
-                  onCheckedChange={(checked) =>
-                    setNotificationSettings({ ...notificationSettings, messages: checked })
-                  }
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <Label>Community updates</Label>
-                <Switch
-                  checked={notificationSettings.communityUpdates}
-                  onCheckedChange={(checked) =>
-                    setNotificationSettings({ ...notificationSettings, communityUpdates: checked })
-                  }
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <Label>Post likes</Label>
-                <Switch
-                  checked={notificationSettings.postLikes}
-                  onCheckedChange={(checked) =>
-                    setNotificationSettings({ ...notificationSettings, postLikes: checked })
-                  }
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <Label>Comments</Label>
-                <Switch
-                  checked={notificationSettings.comments}
-                  onCheckedChange={(checked) =>
-                    setNotificationSettings({ ...notificationSettings, comments: checked })
-                  }
+                  disabled={actionLoading === "notifications"}
                 />
               </div>
             </CardContent>
@@ -467,7 +476,9 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Theme</CardTitle>
-              <CardDescription>Customize the appearance of the app</CardDescription>
+              <CardDescription>
+                Customize the appearance of the app
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-3 gap-4">
@@ -480,7 +491,7 @@ export default function SettingsPage() {
                   <span className="text-sm">Dark</span>
                 </button>
                 <button className="flex flex-col items-center gap-2 rounded-lg border border-border p-4 hover:border-foreground/50">
-                  <div className="h-12 w-12 rounded-full bg-gradient-to-br from-background to-neutral-900" />
+                  <div className="h-12 w-12 rounded-full bg-linear-to-br from-background to-neutral-900" />
                   <span className="text-sm">System</span>
                 </button>
               </div>
@@ -490,7 +501,9 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Danger Zone</CardTitle>
-              <CardDescription>Irreversible actions for your account</CardDescription>
+              <CardDescription>
+                Irreversible actions for your account
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <AlertDialog>
@@ -502,16 +515,20 @@ export default function SettingsPage() {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogTitle>
+                      Are you absolutely sure?
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete your
-                      account and remove your data from our servers.
+                      This action cannot be undone. This will permanently delete
+                      your account and remove your data from our servers.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
-                      onClick={logout}
+                      onClick={() => {
+                        /* Handle account deletion */
+                      }}
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
                       Delete Account

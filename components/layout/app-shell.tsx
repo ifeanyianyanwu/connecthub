@@ -4,7 +4,7 @@ import React from "react";
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,7 @@ import {
   UserCircle,
   Shield,
   X,
+  EllipsisVertical,
 } from "lucide-react";
 
 import { useNotificationStore } from "@/lib/store";
@@ -58,6 +59,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   const isAdmin = user?.role === "admin";
+
+  const searchParams = useSearchParams();
+  const convsersation = searchParams.get("conversation");
 
   return (
     <div className="min-h-screen bg-background">
@@ -130,6 +134,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       @{user?.profile?.username}
                     </p>
                   </div>
+                  <EllipsisVertical className="ml-auto h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
@@ -327,7 +332,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card lg:hidden">
+      <nav
+        className={cn(
+          convsersation
+            ? "hidden"
+            : "fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card lg:hidden",
+        )}
+      >
         <div className="flex items-center justify-around py-2">
           {navigation.slice(0, 5).map((item) => {
             const isActive =

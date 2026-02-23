@@ -137,7 +137,6 @@ export default function DiscoverPage() {
       const { error } = await supabase.from("connections").insert({
         user1_id: user.id,
         user2_id: targetUserId,
-        status: "pending",
       });
       if (error) throw error;
     } catch (error) {
@@ -235,7 +234,6 @@ export default function DiscoverPage() {
           size="sm"
           className="w-full sm:w-auto"
         >
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           Pending
         </Button>
       );
@@ -334,7 +332,7 @@ export default function DiscoverPage() {
                   <CardContent className="pt-6">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <Link
-                        href={`/profile/${user.id}`}
+                        href={`/user/${user.id}`}
                         className="flex items-start gap-4"
                       >
                         <Avatar className="h-16 w-16">
@@ -355,7 +353,6 @@ export default function DiscoverPage() {
                                 user.username ||
                                 "Anonymous"}
                             </h3>
-                            {/* MATCH SCORE BADGE */}
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Badge
@@ -377,7 +374,6 @@ export default function DiscoverPage() {
                                     Match Breakdown
                                   </p>
 
-                                  {/* Exact Match Section */}
                                   <div className="flex justify-between text-sm">
                                     <span>Shared Interests (60%)</span>
                                     <span className="font-mono">
@@ -386,7 +382,6 @@ export default function DiscoverPage() {
                                     </span>
                                   </div>
 
-                                  {/* AI Match Section */}
                                   <div className="flex justify-between text-sm">
                                     <span>AI Semantic Match (40%)</span>
                                     <span className="font-mono">
@@ -396,7 +391,6 @@ export default function DiscoverPage() {
 
                                   <div className="my-2 border-t border-border" />
 
-                                  {/* Contextual Narrative */}
                                   <p className="text-xs text-muted-foreground leading-relaxed">
                                     {getMatchReason(user)}
                                   </p>
@@ -439,14 +433,13 @@ export default function DiscoverPage() {
         </TabsContent>
 
         <TabsContent value="all">
-          {/* Same logic as above, just showing everyone */}
           <div className="grid gap-4 sm:grid-cols-2">
             {filteredAllUsers.map((user) => (
               <Card key={user.id}>
                 <CardContent className="pt-6">
                   <div className="flex items-start justify-between gap-4">
                     <Link
-                      href={`/profile/${user.id}`}
+                      href={`/user/${user.id}`}
                       className="flex items-start gap-3"
                     >
                       <Avatar className="h-12 w-12">
