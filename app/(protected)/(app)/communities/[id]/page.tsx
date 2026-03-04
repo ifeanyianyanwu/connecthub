@@ -45,6 +45,7 @@ type Post = Tables<"posts"> & {
 type Community = Tables<"communities"> & {
   isMember: boolean;
   admins: string[];
+  community_members?: { count: number }[];
 };
 
 type Member = Profile & {
@@ -80,7 +81,11 @@ export default function CommunityDetailPage() {
 
     // Community + membership check
     const [communityResult, membershipResult] = await Promise.all([
-      supabase.from("communities").select("*").eq("id", communityId).single(),
+      supabase
+        .from("communities")
+        .select("*, community_members(count)")
+        .eq("id", communityId)
+        .single(),
       user?.id
         ? supabase
             .from("community_members")
@@ -98,6 +103,7 @@ export default function CommunityDetailPage() {
 
     setCommunity({
       ...communityResult.data,
+      community_members: communityResult.data.community_members,
       isMember: !!membershipResult.data,
       admins: [communityResult.data.created_by],
     });
@@ -240,7 +246,9 @@ export default function CommunityDetailPage() {
           ? {
               ...prev,
               isMember: true,
-              member_count: (prev.member_count ?? 0) + 1,
+              community_members: prev.community_members
+                ? [{ count: prev.community_members[0].count + 1 }]
+                : [{ count: 1 }],
             }
           : prev,
       );
@@ -262,7 +270,13 @@ export default function CommunityDetailPage() {
           ? {
               ...prev,
               isMember: false,
-              member_count: Math.max(0, (prev.member_count ?? 0) - 1),
+              community_members: prev.community_members
+                ? [
+                    {
+                      count: Math.max(0, prev.community_members[0].count - 1),
+                    },
+                  ]
+                : [{ count: 0 }],
             }
           : prev,
       );
@@ -474,7 +488,10 @@ export default function CommunityDetailPage() {
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
               <Users className="h-4 w-4" />
-              {(community.member_count ?? 0).toLocaleString()} members
+              {(
+                community.community_members?.[0]?.count ?? 0
+              ).toLocaleString()}{" "}
+              members
             </span>
             <span>{posts.length.toLocaleString()} posts</span>
           </div>
@@ -617,7 +634,9 @@ export default function CommunityDetailPage() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Members</span>
                     <span className="font-medium">
-                      {(community.member_count ?? 0).toLocaleString()}
+                      {(
+                        community.community_members?.[0]?.count ?? 0
+                      ).toLocaleString()}
                     </span>
                   </div>
                   <div className="flex justify-between">

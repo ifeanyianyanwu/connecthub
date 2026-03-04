@@ -63,7 +63,9 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Profile = Tables<"profiles">;
-type Community = Tables<"communities">;
+type Community = Tables<"communities"> & {
+  community_members?: { count: number }[];
+};
 type Report = Tables<"reports"> & {
   reporter: Pick<
     Profile,
@@ -245,7 +247,7 @@ function AdminContent() {
   const fetchCommunities = useCallback(async () => {
     const { data, error } = await supabase
       .from("communities")
-      .select("*")
+      .select("*, community_members(count)")
       .order("created_at", { ascending: false });
 
     if (!error && data) setCommunities(data);
@@ -658,7 +660,9 @@ function AdminContent() {
                                 {c.category || "—"}
                               </Badge>
                             </TableCell>
-                            <TableCell>{c.member_count ?? 0}</TableCell>
+                            <TableCell>
+                              {c.community_members?.[0]?.count ?? 0}
+                            </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                               {c.created_at
                                 ? formatDistanceToNow(new Date(c.created_at), {

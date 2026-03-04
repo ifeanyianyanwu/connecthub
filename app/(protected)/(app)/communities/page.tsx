@@ -48,7 +48,7 @@ const categories = [
 
 type Community = Tables<"communities"> & {
   isMember: boolean;
-  postCount: number;
+  community_members?: { count: number }[];
 };
 
 export default function CommunitiesPage() {
@@ -76,7 +76,7 @@ export default function CommunitiesPage() {
 
     // Run both queries in parallel
     const [communitiesResult, membersResult] = await Promise.all([
-      supabase.from("communities").select("*"),
+      supabase.from("communities").select("*, community_members(count)"),
       supabase
         .from("community_members")
         .select("community_id")
@@ -97,7 +97,6 @@ export default function CommunitiesPage() {
       communitiesResult.data.map((c) => ({
         ...c,
         isMember: memberIds.has(c.id),
-        postCount: 0,
       })),
     );
   }, [user, supabase]);
@@ -141,7 +140,7 @@ export default function CommunitiesPage() {
       setAllCommunities((prev) =>
         prev.map((c) =>
           c.id === communityId
-            ? { ...c, isMember: true, member_count: (c.member_count ?? 0) + 1 }
+            ? { ...c, isMember: true, }
             : c,
         ),
       );
@@ -170,7 +169,6 @@ export default function CommunitiesPage() {
             ? {
                 ...c,
                 isMember: false,
-                member_count: Math.max(0, (c.member_count ?? 0) - 1),
               }
             : c,
         ),
@@ -210,10 +208,7 @@ export default function CommunitiesPage() {
     });
 
     // Add to local state directly — no need to re-fetch
-    setAllCommunities((prev) => [
-      { ...data, isMember: true, postCount: 0 },
-      ...prev,
-    ]);
+    setAllCommunities((prev) => [{ ...data, isMember: true }, ...prev]);
 
     setNewCommunity({ name: "", description: "", category: "Technology" });
     setIsCreating(false);
@@ -497,9 +492,11 @@ function CommunityCard({ community, onJoin, onLeave }: CommunityCardProps) {
         <div className="mb-4 flex items-center gap-4 text-sm text-muted-foreground">
           <span className="flex items-center gap-1">
             <Users className="h-4 w-4" />
-            {(community.member_count ?? 0).toLocaleString()} members
+            {(
+              community.community_members?.[0]?.count ?? 0
+            ).toLocaleString()}{" "}
+            members
           </span>
-          <span>{community.postCount.toLocaleString()} posts</span>
         </div>
         {community.isMember ? (
           <div className="flex gap-2">
