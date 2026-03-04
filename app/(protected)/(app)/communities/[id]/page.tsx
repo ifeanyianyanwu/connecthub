@@ -9,22 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Users,
   Globe,
   ArrowLeft,
-  MoreHorizontal,
-  Heart,
   MessageCircle,
-  Share2,
   Send,
-  Bookmark,
-  Flag,
   ImageIcon,
   Loader2,
   UserPlus,
@@ -32,12 +21,12 @@ import {
   Clock,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { cn } from "@/lib/utils";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { Tables } from "@/lib/database.types";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { PostCard } from "@/components/post-card";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -573,6 +562,7 @@ export default function CommunityDetailPage() {
                   key={post.id}
                   post={post}
                   currentUserId={user?.id}
+                  currentUserProfile={user?.profile}
                   onToggleLike={() => toggleLike(post)}
                 />
               ))
@@ -653,107 +643,6 @@ export default function CommunityDetailPage() {
         </Tabs>
       </div>
     </div>
-  );
-}
-
-// ─── Post Card ────────────────────────────────────────────────────────────────
-
-function PostCard({
-  post,
-  currentUserId,
-  onToggleLike,
-}: {
-  post: Post;
-  currentUserId?: string;
-  onToggleLike: () => void;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <Link
-            href={`/user/${post.profiles.id}`}
-            className="flex items-center gap-3"
-          >
-            <Avatar className="h-10 w-10">
-              <AvatarImage
-                src={post.profiles.profile_picture || "/placeholder.svg"}
-                alt={post.profiles.display_name || ""}
-              />
-              <AvatarFallback>
-                {post.profiles.display_name?.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="font-medium hover:underline">
-                {post.profiles.display_name || post.profiles.username}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {post.created_at &&
-                  formatDistanceToNow(new Date(post.created_at), {
-                    addSuffix: true,
-                  })}
-              </p>
-            </div>
-          </Link>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem>
-                <Bookmark className="mr-2 h-4 w-4" />
-                Save post
-              </DropdownMenuItem>
-              {post.user_id !== currentUserId && (
-                <DropdownMenuItem className="text-destructive">
-                  <Flag className="mr-2 h-4 w-4" />
-                  Report
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="whitespace-pre-wrap">{post.content}</p>
-
-        {post.image_url && (
-          <div className="relative aspect-video overflow-hidden rounded-lg">
-            <Image
-              src={post.image_url}
-              alt="Post image"
-              fill
-              className="object-cover"
-            />
-          </div>
-        )}
-
-        <div className="flex items-center gap-4 border-t border-border pt-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn(post.isLiked && "text-red-500")}
-            onClick={onToggleLike}
-          >
-            <Heart
-              className={cn("mr-1 h-4 w-4", post.isLiked && "fill-current")}
-            />
-            {post.likes[0]?.count ?? 0}
-          </Button>
-          <Button variant="ghost" size="sm">
-            <MessageCircle className="mr-1 h-4 w-4" />
-            {post.comments[0]?.count ?? 0}
-          </Button>
-          <Button variant="ghost" size="sm">
-            <Share2 className="mr-1 h-4 w-4" />
-            Share
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 
