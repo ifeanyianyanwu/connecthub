@@ -58,7 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.push("/auth/login");
   };
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.profile?.is_admin;
 
   const searchParams = useSearchParams();
   const convsersation = searchParams.get("conversation");

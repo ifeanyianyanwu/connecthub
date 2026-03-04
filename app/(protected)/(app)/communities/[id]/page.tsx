@@ -9,35 +9,26 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Users,
   Globe,
   ArrowLeft,
-  MoreHorizontal,
-  Heart,
   MessageCircle,
-  Share2,
   Send,
-  Bookmark,
-  Flag,
   ImageIcon,
   Loader2,
   UserPlus,
   UserCheck,
   Clock,
+  X,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { cn } from "@/lib/utils";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { Tables } from "@/lib/database.types";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { PostCard } from "@/components/post-card";
+import { useHandleMediaUpload } from "@/hooks/use-handle-media-upload";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,6 +47,7 @@ type Post = Tables<"posts"> & {
 type Community = Tables<"communities"> & {
   isMember: boolean;
   admins: string[];
+  community_members?: { count: number }[];
 };
 
 type Member = Profile & {
@@ -83,6 +75,14 @@ export default function CommunityDetailPage() {
   const [newPostContent, setNewPostContent] = useState("");
   const [isPosting, setIsPosting] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const {
+    handleMediaUpload,
+    isUploadingMedia,
+    error: mediaError,
+  } = useHandleMediaUpload();
+
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   // ── Fetch community + posts ──────────────────────────────────────────────
 
@@ -91,7 +91,11 @@ export default function CommunityDetailPage() {
 
     // Community + membership check
     const [communityResult, membershipResult] = await Promise.all([
-      supabase.from("communities").select("*").eq("id", communityId).single(),
+      supabase
+        .from("communities")
+        .select("*, community_members(count)")
+        .eq("id", communityId)
+        .single(),
       user?.id
         ? supabase
             .from("community_members")
@@ -109,6 +113,7 @@ export default function CommunityDetailPage() {
 
     setCommunity({
       ...communityResult.data,
+      community_members: communityResult.data.community_members,
       isMember: !!membershipResult.data,
       admins: [communityResult.data.created_by],
     });
@@ -251,7 +256,9 @@ export default function CommunityDetailPage() {
           ? {
               ...prev,
               isMember: true,
-              member_count: (prev.member_count ?? 0) + 1,
+              community_members: prev.community_members
+                ? [{ count: prev.community_members[0].count + 1 }]
+                : [{ count: 1 }],
             }
           : prev,
       );
@@ -273,11 +280,39 @@ export default function CommunityDetailPage() {
           ? {
               ...prev,
               isMember: false,
-              member_count: Math.max(0, (prev.member_count ?? 0) - 1),
+              community_members: prev.community_members
+                ? [
+                    {
+                      count: Math.max(0, prev.community_members[0].count - 1),
+                    },
+                  ]
+                : [{ count: 0 }],
             }
           : prev,
       );
     }
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate before previewing — hook will also validate on upload,
+    // but we want to show errors immediately without waiting for submission
+    if (!file.type.startsWith("image/")) return;
+    if (file.size > 1024 * 1024) return;
+
+    setSelectedImage(file);
+    setImagePreview(URL.createObjectURL(file));
+
+    // Reset input so the same file can be reselected after removal
+    e.target.value = "";
+  };
+
+  const handleRemoveImage = () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setSelectedImage(null);
+    setImagePreview(null);
   };
 
   // ── Create post ──────────────────────────────────────────────────────────
@@ -286,12 +321,25 @@ export default function CommunityDetailPage() {
     if (!newPostContent.trim() || !user?.id || !community) return;
     setIsPosting(true);
 
+    // Upload image first if one is selected
+    let imageUrl: string | null = null;
+    if (selectedImage) {
+      const uploaded = await handleMediaUpload(selectedImage);
+      if (!uploaded) {
+        // Upload failed — mediaError is already set by the hook
+        setIsPosting(false);
+        return;
+      }
+      imageUrl = uploaded;
+    }
+
     const { data, error } = await supabase
       .from("posts")
       .insert({
         content: newPostContent,
         community_id: community.id,
         user_id: user.id,
+        image_url: imageUrl,
       })
       .select(
         "*, profiles:user_id(id, username, display_name, profile_picture, bio), likes(count), comments(count)",
@@ -301,6 +349,7 @@ export default function CommunityDetailPage() {
     if (!error && data) {
       setPosts((prev) => [{ ...data, isLiked: false } as Post, ...prev]);
       setNewPostContent("");
+      handleRemoveImage();
     } else {
       console.error("Error creating post:", error);
     }
@@ -444,10 +493,6 @@ export default function CommunityDetailPage() {
             <div className="flex-1 sm:pb-2">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-bold">{community.name}</h1>
-                <Badge variant="secondary" className="gap-1">
-                  <Globe className="h-3 w-3" />
-                  Public
-                </Badge>
               </div>
               {community.category && (
                 <Badge variant="outline" className="mt-2">
@@ -485,7 +530,10 @@ export default function CommunityDetailPage() {
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
               <Users className="h-4 w-4" />
-              {(community.member_count ?? 0).toLocaleString()} members
+              {(
+                community.community_members?.[0]?.count ?? 0
+              ).toLocaleString()}{" "}
+              members
             </span>
             <span>{posts.length.toLocaleString()} posts</span>
           </div>
@@ -522,6 +570,7 @@ export default function CommunityDetailPage() {
                         {user?.user_metadata?.name?.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
+
                     <div className="flex-1 space-y-3">
                       <Textarea
                         placeholder={`Share something with ${community.name}...`}
@@ -530,14 +579,71 @@ export default function CommunityDetailPage() {
                         rows={3}
                         className="resize-none"
                       />
+
+                      {/* Image preview */}
+                      {imagePreview && (
+                        <div className="relative w-full overflow-hidden rounded-lg border border-border">
+                          <div className="relative aspect-video">
+                            <Image
+                              src={imagePreview}
+                              alt="Selected image"
+                              fill
+                              className="object-cover"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="icon"
+                            className="absolute right-2 top-2 h-7 w-7 rounded-full bg-background/80 backdrop-blur-sm"
+                            onClick={handleRemoveImage}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Upload error from hook */}
+                      {mediaError && (
+                        <p className="text-xs text-destructive">{mediaError}</p>
+                      )}
+
                       <div className="flex items-center justify-between">
-                        <Button variant="ghost" size="sm" disabled>
-                          <ImageIcon className="mr-2 h-4 w-4" />
-                          Add Image
-                        </Button>
+                        {/* Hidden file input triggered by the button */}
+                        <label htmlFor="post-image-upload">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            asChild
+                            disabled={isUploadingMedia || !!selectedImage}
+                          >
+                            <span className="cursor-pointer">
+                              {isUploadingMedia ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <ImageIcon className="mr-2 h-4 w-4" />
+                              )}
+                              {selectedImage ? "Image selected" : "Add Image"}
+                            </span>
+                          </Button>
+                          <input
+                            id="post-image-upload"
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleImageSelect}
+                            disabled={isUploadingMedia || !!selectedImage}
+                          />
+                        </label>
+
                         <Button
                           onClick={handleCreatePost}
-                          disabled={!newPostContent.trim() || isPosting}
+                          disabled={
+                            (!newPostContent.trim() && !selectedImage) ||
+                            isPosting ||
+                            isUploadingMedia
+                          }
                         >
                           {isPosting ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -573,6 +679,7 @@ export default function CommunityDetailPage() {
                   key={post.id}
                   post={post}
                   currentUserId={user?.id}
+                  currentUserProfile={user?.profile}
                   onToggleLike={() => toggleLike(post)}
                 />
               ))
@@ -627,7 +734,9 @@ export default function CommunityDetailPage() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Members</span>
                     <span className="font-medium">
-                      {(community.member_count ?? 0).toLocaleString()}
+                      {(
+                        community.community_members?.[0]?.count ?? 0
+                      ).toLocaleString()}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -653,107 +762,6 @@ export default function CommunityDetailPage() {
         </Tabs>
       </div>
     </div>
-  );
-}
-
-// ─── Post Card ────────────────────────────────────────────────────────────────
-
-function PostCard({
-  post,
-  currentUserId,
-  onToggleLike,
-}: {
-  post: Post;
-  currentUserId?: string;
-  onToggleLike: () => void;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <Link
-            href={`/user/${post.profiles.id}`}
-            className="flex items-center gap-3"
-          >
-            <Avatar className="h-10 w-10">
-              <AvatarImage
-                src={post.profiles.profile_picture || "/placeholder.svg"}
-                alt={post.profiles.display_name || ""}
-              />
-              <AvatarFallback>
-                {post.profiles.display_name?.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="font-medium hover:underline">
-                {post.profiles.display_name || post.profiles.username}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {post.created_at &&
-                  formatDistanceToNow(new Date(post.created_at), {
-                    addSuffix: true,
-                  })}
-              </p>
-            </div>
-          </Link>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem>
-                <Bookmark className="mr-2 h-4 w-4" />
-                Save post
-              </DropdownMenuItem>
-              {post.user_id !== currentUserId && (
-                <DropdownMenuItem className="text-destructive">
-                  <Flag className="mr-2 h-4 w-4" />
-                  Report
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="whitespace-pre-wrap">{post.content}</p>
-
-        {post.image_url && (
-          <div className="relative aspect-video overflow-hidden rounded-lg">
-            <Image
-              src={post.image_url}
-              alt="Post image"
-              fill
-              className="object-cover"
-            />
-          </div>
-        )}
-
-        <div className="flex items-center gap-4 border-t border-border pt-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn(post.isLiked && "text-red-500")}
-            onClick={onToggleLike}
-          >
-            <Heart
-              className={cn("mr-1 h-4 w-4", post.isLiked && "fill-current")}
-            />
-            {post.likes[0]?.count ?? 0}
-          </Button>
-          <Button variant="ghost" size="sm">
-            <MessageCircle className="mr-1 h-4 w-4" />
-            {post.comments[0]?.count ?? 0}
-          </Button>
-          <Button variant="ghost" size="sm">
-            <Share2 className="mr-1 h-4 w-4" />
-            Share
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 

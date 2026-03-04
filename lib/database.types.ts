@@ -61,7 +61,6 @@ export type Database = {
           description: string | null
           id: string
           image_url: string | null
-          member_count: number | null
           name: string
           updated_at: string | null
         }
@@ -72,7 +71,6 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
-          member_count?: number | null
           name: string
           updated_at?: string | null
         }
@@ -83,7 +81,6 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
-          member_count?: number | null
           name?: string
           updated_at?: string | null
         }
@@ -565,7 +562,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      ConnectionStatus: "pending" | "accepted" | "blocked"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -692,6 +689,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      ConnectionStatus: ["pending", "accepted", "blocked"],
+    },
   },
 } as const

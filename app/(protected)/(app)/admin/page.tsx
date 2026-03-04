@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useStore } from "@/lib/store";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,14 +29,21 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Users,
   MessageSquare,
   Flag,
   TrendingUp,
   Shield,
-  Ban,
   CheckCircle,
   XCircle,
   Search,
@@ -45,512 +51,862 @@ import {
   Eye,
   Trash2,
   AlertTriangle,
+  Loader2,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { Tables } from "@/lib/database.types";
+import { formatDistanceToNow } from "date-fns";
+import Link from "next/link";
 import Loading from "./loading";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
-export default function AdminPage() {
-  const { currentUser, users, reports, communities, adminActions } = useStore();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [userFilter, setUserFilter] = useState("all");
-  const [reportFilter, setReportFilter] = useState("all");
-  const searchParams = useSearchParams();
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-  if (!currentUser || currentUser.role !== "admin") {
+type Profile = Tables<"profiles">;
+type Community = Tables<"communities"> & {
+  community_members?: { count: number }[];
+};
+type Report = Tables<"reports"> & {
+  reporter: Pick<
+    Profile,
+    "id" | "username" | "display_name" | "profile_picture"
+  > | null;
+};
+
+type Stats = {
+  totalUsers: number;
+  totalCommunities: number;
+  pendingReports: number;
+  resolvedReports: number;
+};
+
+// ─── Admin Guard ──────────────────────────────────────────────────────────────
+
+function AccessDenied() {
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <Card className="w-full max-w-md">
+        <CardContent className="pt-6 text-center">
+          <Shield className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+          <h2 className="mb-2 text-xl font-semibold">Access Denied</h2>
+          <p className="text-muted-foreground">
+            You do not have permission to access the admin dashboard.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+function AdminContent() {
+  const { user: authUser } = useCurrentUser();
+
+  // ✅ Stable supabase reference
+  const supabase = useMemo(() => createClient(), []);
+
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null); // null = loading
+  const [stats, setStats] = useState<Stats>({
+    totalUsers: 0,
+    totalCommunities: 0,
+    pendingReports: 0,
+    resolvedReports: 0,
+  });
+
+  // Tab-specific state
+  const [users, setUsers] = useState<Profile[]>([]);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [communities, setCommunities] = useState<Community[]>([]);
+
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadingReports, setLoadingReports] = useState(false);
+  const [loadingCommunities, setLoadingCommunities] = useState(false);
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  const [activeTab, setActiveTab] = useState("reports");
+  const [userSearch, setUserSearch] = useState("");
+  const [reportFilter, setReportFilter] = useState("pending");
+  const [communitySearch, setCommunitySearch] = useState("");
+
+  // ── Verify admin status ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!authUser?.id) return;
+
+    supabase
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", authUser.id)
+      .single()
+      .then(({ data }) => {
+        setIsAdmin(!!data?.is_admin);
+      });
+  }, [authUser?.id, supabase]);
+
+  // ── Fetch stats (always loaded) ────────────────────────────────────────────
+
+  const fetchStats = useCallback(async () => {
+    const [usersCount, communitiesCount, pendingCount, resolvedCount] =
+      await Promise.all([
+        supabase.from("profiles").select("id", { count: "exact", head: true }),
+        supabase
+          .from("communities")
+          .select("id", { count: "exact", head: true }),
+        supabase
+          .from("reports")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pending"),
+        supabase
+          .from("reports")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "resolved"),
+      ]);
+
+    setStats({
+      totalUsers: usersCount.count ?? 0,
+      totalCommunities: communitiesCount.count ?? 0,
+      pendingReports: pendingCount.count ?? 0,
+      resolvedReports: resolvedCount.count ?? 0,
+    });
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    const load = async () => {
+      setLoadingStats(true);
+      await fetchStats();
+      if (!cancelled) setLoadingStats(false);
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, fetchStats]);
+
+  // ── Fetch users ────────────────────────────────────────────────────────────
+
+  const fetchUsers = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (!error && data) setUsers(data);
+  }, [supabase]);
+
+  useEffect(() => {
+    if (activeTab !== "users" || !isAdmin) return;
+    let cancelled = false;
+    const load = async () => {
+      setLoadingUsers(true);
+      await fetchUsers();
+      if (!cancelled) setLoadingUsers(false);
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, isAdmin, fetchUsers]);
+
+  // ── Fetch reports ──────────────────────────────────────────────────────────
+
+  const fetchReports = useCallback(async () => {
+    const query = supabase
+      .from("reports")
+      .select(
+        "*, reporter:profiles!reporter_id(id, username, display_name, profile_picture)",
+      )
+      .order("created_at", { ascending: false });
+
+    if (reportFilter !== "all") {
+      query.eq("status", reportFilter);
+    }
+
+    const { data, error } = await query;
+    if (!error && data) setReports(data as Report[]);
+  }, [supabase, reportFilter]);
+
+  useEffect(() => {
+    if (activeTab !== "reports" || !isAdmin) return;
+    let cancelled = false;
+    const load = async () => {
+      setLoadingReports(true);
+      await fetchReports();
+      if (!cancelled) setLoadingReports(false);
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, isAdmin, fetchReports]);
+
+  // ── Fetch communities ──────────────────────────────────────────────────────
+
+  const fetchCommunities = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("communities")
+      .select("*, community_members(count)")
+      .order("created_at", { ascending: false });
+
+    if (!error && data) setCommunities(data);
+  }, [supabase]);
+
+  useEffect(() => {
+    if (activeTab !== "communities" || !isAdmin) return;
+    let cancelled = false;
+    const load = async () => {
+      setLoadingCommunities(true);
+      await fetchCommunities();
+      if (!cancelled) setLoadingCommunities(false);
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, isAdmin, fetchCommunities]);
+
+  // ── Report actions ─────────────────────────────────────────────────────────
+
+  const resolveReport = async (reportId: string) => {
+    if (!authUser?.id) return;
+
+    const { error } = await supabase
+      .from("reports")
+      .update({
+        status: "resolved",
+        resolved_by: authUser.id,
+        resolved_at: new Date().toISOString(),
+      })
+      .eq("id", reportId);
+
+    if (!error) {
+      setReports((prev) =>
+        prev.map((r) => (r.id === reportId ? { ...r, status: "resolved" } : r)),
+      );
+      setStats((prev) => ({
+        ...prev,
+        pendingReports: Math.max(0, prev.pendingReports - 1),
+        resolvedReports: prev.resolvedReports + 1,
+      }));
+    }
+  };
+
+  const dismissReport = async (reportId: string) => {
+    if (!authUser?.id) return;
+
+    const { error } = await supabase
+      .from("reports")
+      .update({
+        status: "resolved",
+        resolved_by: authUser.id,
+        resolved_at: new Date().toISOString(),
+      })
+      .eq("id", reportId);
+
+    if (!error) {
+      setReports((prev) => prev.filter((r) => r.id !== reportId));
+      setStats((prev) => ({
+        ...prev,
+        pendingReports: Math.max(0, prev.pendingReports - 1),
+      }));
+    }
+  };
+
+  // ── Delete community ───────────────────────────────────────────────────────
+
+  const deleteCommunity = async (communityId: string) => {
+    const { error } = await supabase
+      .from("communities")
+      .delete()
+      .eq("id", communityId);
+
+    if (!error) {
+      setCommunities((prev) => prev.filter((c) => c.id !== communityId));
+      setStats((prev) => ({
+        ...prev,
+        totalCommunities: Math.max(0, prev.totalCommunities - 1),
+      }));
+    }
+  };
+
+  // ── Filtered derivations ───────────────────────────────────────────────────
+
+  const filteredUsers = useMemo(
+    () =>
+      users.filter((u) => {
+        const name = (u.display_name || u.username || "").toLowerCase();
+        const email = (u.email || "").toLowerCase();
+        const term = userSearch.toLowerCase();
+        return name.includes(term) || email.includes(term);
+      }),
+    [users, userSearch],
+  );
+
+  const filteredCommunities = useMemo(
+    () =>
+      communities.filter((c) =>
+        c.name.toLowerCase().includes(communitySearch.toLowerCase()),
+      ),
+    [communities, communitySearch],
+  );
+
+  // ─── Guard states ─────────────────────────────────────────────────────────
+
+  if (isAdmin === null) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6 text-center">
-            <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
-            <p className="text-muted-foreground">
-              You do not have permission to access the admin dashboard.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
-  // const filteredUsers = users.filter((user) => {
-  //   const matchesSearch =
-  //     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-  //     user.email.toLowerCase().includes(searchTerm.toLowerCase());
-  //   const matchesFilter =
-  //     userFilter === "all" ||
-  //     (userFilter === "active" && user.status === "active") ||
-  //     (userFilter === "suspended" && user.status === "suspended") ||
-  //     (userFilter === "banned" && user.status === "banned");
-  //   return matchesSearch && matchesFilter;
-  // });
+  if (!isAdmin) return <AccessDenied />;
 
-  // const filteredReports = reports.filter((report) => {
-  //   return reportFilter === "all" || report.status === reportFilter;
-  // });
-
-  // const stats = {
-  //   totalUsers: users.length,
-  //   activeUsers: users.filter((u) => u.status === "active").length,
-  //   totalCommunities: communities.length,
-  //   pendingReports: reports.filter((r) => r.status === "pending").length,
-  // };
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div>Hello</div>
-    // <Suspense fallback={<Loading />}>
-    //   <div className="space-y-6">
-    //     <div>
-    //       <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-    //       <p className="text-muted-foreground">
-    //         Manage users, content, and platform settings
-    //       </p>
-    //     </div>
+    <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 pb-20 lg:pb-6">
+      <div>
+        <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+        <p className="text-muted-foreground">
+          Manage users, content, and platform settings
+        </p>
+      </div>
 
-    //     {/* Stats Overview */}
-    //     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-    //       <Card>
-    //         <CardContent className="pt-6">
-    //           <div className="flex items-center gap-3">
-    //             <div className="p-2 bg-muted rounded-lg">
-    //               <Users className="h-5 w-5" />
-    //             </div>
-    //             <div>
-    //               <p className="text-2xl font-bold">{stats.totalUsers}</p>
-    //               <p className="text-sm text-muted-foreground">Total Users</p>
-    //             </div>
-    //           </div>
-    //         </CardContent>
-    //       </Card>
-    //       <Card>
-    //         <CardContent className="pt-6">
-    //           <div className="flex items-center gap-3">
-    //             <div className="p-2 bg-muted rounded-lg">
-    //               <TrendingUp className="h-5 w-5" />
-    //             </div>
-    //             <div>
-    //               <p className="text-2xl font-bold">{stats.activeUsers}</p>
-    //               <p className="text-sm text-muted-foreground">Active Users</p>
-    //             </div>
-    //           </div>
-    //         </CardContent>
-    //       </Card>
-    //       <Card>
-    //         <CardContent className="pt-6">
-    //           <div className="flex items-center gap-3">
-    //             <div className="p-2 bg-muted rounded-lg">
-    //               <MessageSquare className="h-5 w-5" />
-    //             </div>
-    //             <div>
-    //               <p className="text-2xl font-bold">{stats.totalCommunities}</p>
-    //               <p className="text-sm text-muted-foreground">Communities</p>
-    //             </div>
-    //           </div>
-    //         </CardContent>
-    //       </Card>
-    //       <Card>
-    //         <CardContent className="pt-6">
-    //           <div className="flex items-center gap-3">
-    //             <div className="p-2 bg-muted rounded-lg">
-    //               <Flag className="h-5 w-5" />
-    //             </div>
-    //             <div>
-    //               <p className="text-2xl font-bold">{stats.pendingReports}</p>
-    //               <p className="text-sm text-muted-foreground">
-    //                 Pending Reports
-    //               </p>
-    //             </div>
-    //           </div>
-    //         </CardContent>
-    //       </Card>
-    //     </div>
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {[
+          {
+            icon: <Users className="h-5 w-5" />,
+            value: loadingStats ? "—" : stats.totalUsers,
+            label: "Total Users",
+          },
+          {
+            icon: <TrendingUp className="h-5 w-5" />,
+            value: loadingStats ? "—" : stats.totalCommunities,
+            label: "Communities",
+          },
+          {
+            icon: <Flag className="h-5 w-5" />,
+            value: loadingStats ? "—" : stats.pendingReports,
+            label: "Pending Reports",
+          },
+          {
+            icon: <MessageSquare className="h-5 w-5" />,
+            value: loadingStats ? "—" : stats.resolvedReports,
+            label: "Resolved Reports",
+          },
+        ].map(({ icon, value, label }) => (
+          <Card key={label}>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-muted p-2">{icon}</div>
+                <div>
+                  <p className="text-2xl font-bold">{value}</p>
+                  <p className="text-sm text-muted-foreground">{label}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
-    //     <Tabs defaultValue="users" className="space-y-4">
-    //       <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
-    //         <TabsTrigger value="users">Users</TabsTrigger>
-    //         <TabsTrigger value="reports">Reports</TabsTrigger>
-    //         <TabsTrigger value="communities">Communities</TabsTrigger>
-    //         <TabsTrigger value="actions">Actions Log</TabsTrigger>
-    //       </TabsList>
+      {/* Tabs */}
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="space-y-4"
+      >
+        <TabsList className="grid w-full grid-cols-3 lg:inline-grid lg:w-auto">
+          <TabsTrigger value="reports">
+            Reports
+            {stats.pendingReports > 0 && (
+              <Badge variant="destructive" className="ml-2 h-5 px-1.5 text-xs">
+                {stats.pendingReports}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="communities">Communities</TabsTrigger>
+        </TabsList>
 
-    //       {/* Users Tab */}
-    //       <TabsContent value="users" className="space-y-4">
-    //         <Card>
-    //           <CardHeader>
-    //             <div className="flex flex-col sm:flex-row gap-4 justify-between">
-    //               <CardTitle>User Management</CardTitle>
-    //               <div className="flex gap-2">
-    //                 <div className="relative">
-    //                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-    //                   <Input
-    //                     placeholder="Search users..."
-    //                     className="pl-9 w-full sm:w-64"
-    //                     value={searchTerm}
-    //                     onChange={(e) => setSearchTerm(e.target.value)}
-    //                   />
-    //                 </div>
-    //                 <Select value={userFilter} onValueChange={setUserFilter}>
-    //                   <SelectTrigger className="w-32">
-    //                     <SelectValue />
-    //                   </SelectTrigger>
-    //                   <SelectContent>
-    //                     <SelectItem value="all">All</SelectItem>
-    //                     <SelectItem value="active">Active</SelectItem>
-    //                     <SelectItem value="suspended">Suspended</SelectItem>
-    //                     <SelectItem value="banned">Banned</SelectItem>
-    //                   </SelectContent>
-    //                 </Select>
-    //               </div>
-    //             </div>
-    //           </CardHeader>
-    //           <CardContent>
-    //             <div className="overflow-x-auto">
-    //               <Table>
-    //                 <TableHeader>
-    //                   <TableRow>
-    //                     <TableHead>User</TableHead>
-    //                     <TableHead>Role</TableHead>
-    //                     <TableHead>Status</TableHead>
-    //                     <TableHead>Joined</TableHead>
-    //                     <TableHead className="text-right">Actions</TableHead>
-    //                   </TableRow>
-    //                 </TableHeader>
-    //                 <TableBody>
-    //                   {filteredUsers.map((user) => (
-    //                     <TableRow key={user.id}>
-    //                       <TableCell>
-    //                         <div className="flex items-center gap-3">
-    //                           <Avatar className="h-8 w-8">
-    //                             <AvatarImage
-    //                               src={user.avatar || "/placeholder.svg"}
-    //                             />
-    //                             <AvatarFallback>
-    //                               {user.name
-    //                                 .split(" ")
-    //                                 .map((n) => n[0])
-    //                                 .join("")}
-    //                             </AvatarFallback>
-    //                           </Avatar>
-    //                           <div>
-    //                             <p className="font-medium">{user.name}</p>
-    //                             <p className="text-sm text-muted-foreground">
-    //                               {user.email}
-    //                             </p>
-    //                           </div>
-    //                         </div>
-    //                       </TableCell>
-    //                       <TableCell>
-    //                         <Badge
-    //                           variant={
-    //                             user.role === "admin" ? "default" : "secondary"
-    //                           }
-    //                         >
-    //                           {user.role}
-    //                         </Badge>
-    //                       </TableCell>
-    //                       <TableCell>
-    //                         <Badge
-    //                           variant={
-    //                             user.status === "active"
-    //                               ? "default"
-    //                               : user.status === "suspended"
-    //                                 ? "secondary"
-    //                                 : "destructive"
-    //                           }
-    //                           className={
-    //                             user.status === "active"
-    //                               ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
-    //                               : ""
-    //                           }
-    //                         >
-    //                           {user.status}
-    //                         </Badge>
-    //                       </TableCell>
-    //                       <TableCell>
-    //                         {new Date(user.createdAt).toLocaleDateString()}
-    //                       </TableCell>
-    //                       <TableCell className="text-right">
-    //                         <DropdownMenu>
-    //                           <DropdownMenuTrigger asChild>
-    //                             <Button variant="ghost" size="icon">
-    //                               <MoreHorizontal className="h-4 w-4" />
-    //                             </Button>
-    //                           </DropdownMenuTrigger>
-    //                           <DropdownMenuContent align="end">
-    //                             <DropdownMenuItem>
-    //                               <Eye className="h-4 w-4 mr-2" />
-    //                               View Profile
-    //                             </DropdownMenuItem>
-    //                             <DropdownMenuItem>
-    //                               <AlertTriangle className="h-4 w-4 mr-2" />
-    //                               Suspend User
-    //                             </DropdownMenuItem>
-    //                             <DropdownMenuItem className="text-destructive">
-    //                               <Ban className="h-4 w-4 mr-2" />
-    //                               Ban User
-    //                             </DropdownMenuItem>
-    //                           </DropdownMenuContent>
-    //                         </DropdownMenu>
-    //                       </TableCell>
-    //                     </TableRow>
-    //                   ))}
-    //                 </TableBody>
-    //               </Table>
-    //             </div>
-    //           </CardContent>
-    //         </Card>
-    //       </TabsContent>
+        {/* ── Reports Tab ── */}
+        <TabsContent value="reports" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle>Content Reports</CardTitle>
+                <Select value={reportFilter} onValueChange={setReportFilter}>
+                  <SelectTrigger className="w-36">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="resolved">Resolved</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingReports ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : reports.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground">
+                  <Flag className="mx-auto mb-3 h-10 w-10 opacity-40" />
+                  <p>No reports found</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {reports.map((report) => (
+                    <ReportCard
+                      key={report.id}
+                      report={report}
+                      onResolve={() => resolveReport(report.id)}
+                      onDismiss={() => dismissReport(report.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-    //       {/* Reports Tab */}
-    //       <TabsContent value="reports" className="space-y-4">
-    //         <Card>
-    //           <CardHeader>
-    //             <div className="flex flex-col sm:flex-row gap-4 justify-between">
-    //               <CardTitle>Content Reports</CardTitle>
-    //               <Select value={reportFilter} onValueChange={setReportFilter}>
-    //                 <SelectTrigger className="w-32">
-    //                   <SelectValue />
-    //                 </SelectTrigger>
-    //                 <SelectContent>
-    //                   <SelectItem value="all">All</SelectItem>
-    //                   <SelectItem value="pending">Pending</SelectItem>
-    //                   <SelectItem value="reviewed">Reviewed</SelectItem>
-    //                   <SelectItem value="resolved">Resolved</SelectItem>
-    //                 </SelectContent>
-    //               </Select>
-    //             </div>
-    //           </CardHeader>
-    //           <CardContent>
-    //             <div className="space-y-4">
-    //               {filteredReports.map((report) => {
-    //                 const reporter = users.find(
-    //                   (u) => u.id === report.reporterId,
-    //                 );
-    //                 return (
-    //                   <Card key={report.id}>
-    //                     <CardContent className="pt-4">
-    //                       <div className="flex flex-col sm:flex-row justify-between gap-4">
-    //                         <div className="space-y-2">
-    //                           <div className="flex items-center gap-2">
-    //                             <Badge
-    //                               variant={
-    //                                 report.status === "pending"
-    //                                   ? "secondary"
-    //                                   : report.status === "reviewed"
-    //                                     ? "outline"
-    //                                     : "default"
-    //                               }
-    //                             >
-    //                               {report.status}
-    //                             </Badge>
-    //                             <Badge variant="outline">{report.type}</Badge>
-    //                           </div>
-    //                           <p className="font-medium">{report.reason}</p>
-    //                           <p className="text-sm text-muted-foreground">
-    //                             Reported by {reporter?.name || "Unknown"} on{" "}
-    //                             {new Date(
-    //                               report.createdAt,
-    //                             ).toLocaleDateString()}
-    //                           </p>
-    //                         </div>
-    //                         <div className="flex gap-2">
-    //                           <Dialog>
-    //                             <DialogTrigger asChild>
-    //                               <Button variant="outline" size="sm">
-    //                                 <Eye className="h-4 w-4 mr-2" />
-    //                                 Review
-    //                               </Button>
-    //                             </DialogTrigger>
-    //                             <DialogContent>
-    //                               <DialogHeader>
-    //                                 <DialogTitle>Review Report</DialogTitle>
-    //                               </DialogHeader>
-    //                               <div className="space-y-4">
-    //                                 <div>
-    //                                   <Label>Report Type</Label>
-    //                                   <p className="text-sm text-muted-foreground">
-    //                                     {report.type}
-    //                                   </p>
-    //                                 </div>
-    //                                 <div>
-    //                                   <Label>Reason</Label>
-    //                                   <p className="text-sm text-muted-foreground">
-    //                                     {report.reason}
-    //                                   </p>
-    //                                 </div>
-    //                                 <div className="flex gap-2">
-    //                                   <Button className="flex-1">
-    //                                     <CheckCircle className="h-4 w-4 mr-2" />
-    //                                     Approve
-    //                                   </Button>
-    //                                   <Button
-    //                                     variant="outline"
-    //                                     className="flex-1 bg-transparent"
-    //                                   >
-    //                                     <XCircle className="h-4 w-4 mr-2" />
-    //                                     Dismiss
-    //                                   </Button>
-    //                                 </div>
-    //                               </div>
-    //                             </DialogContent>
-    //                           </Dialog>
-    //                           <Button variant="ghost" size="sm">
-    //                             <Trash2 className="h-4 w-4" />
-    //                           </Button>
-    //                         </div>
-    //                       </div>
-    //                     </CardContent>
-    //                   </Card>
-    //                 );
-    //               })}
-    //               {filteredReports.length === 0 && (
-    //                 <div className="text-center py-8 text-muted-foreground">
-    //                   No reports found
-    //                 </div>
-    //               )}
-    //             </div>
-    //           </CardContent>
-    //         </Card>
-    //       </TabsContent>
+        {/* ── Users Tab ── */}
+        <TabsContent value="users" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle>User Management</CardTitle>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search users..."
+                    className="pl-9 sm:w-64"
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingUsers ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>User</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Joined</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredUsers.length === 0 ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={4}
+                            className="py-8 text-center text-muted-foreground"
+                          >
+                            No users found
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredUsers.map((u) => (
+                          <TableRow key={u.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage
+                                    src={
+                                      u.profile_picture || "/placeholder.svg"
+                                    }
+                                    alt={u.display_name || ""}
+                                  />
+                                  <AvatarFallback>
+                                    {(u.display_name || u.username || "?")
+                                      .charAt(0)
+                                      .toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="font-medium">
+                                    {u.display_name || u.username}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {u.email}
+                                  </p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={u.is_admin ? "default" : "secondary"}
+                              >
+                                {u.is_admin ? "Admin" : "Member"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              {u.created_at
+                                ? formatDistanceToNow(new Date(u.created_at), {
+                                    addSuffix: true,
+                                  })
+                                : "—"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/user/${u.id}`}>
+                                      <Eye className="mr-2 h-4 w-4" />
+                                      View Profile
+                                    </Link>
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-    //       {/* Communities Tab */}
-    //       <TabsContent value="communities" className="space-y-4">
-    //         <Card>
-    //           <CardHeader>
-    //             <CardTitle>Community Management</CardTitle>
-    //           </CardHeader>
-    //           <CardContent>
-    //             <div className="overflow-x-auto">
-    //               <Table>
-    //                 <TableHeader>
-    //                   <TableRow>
-    //                     <TableHead>Community</TableHead>
-    //                     <TableHead>Members</TableHead>
-    //                     <TableHead>Privacy</TableHead>
-    //                     <TableHead>Created</TableHead>
-    //                     <TableHead className="text-right">Actions</TableHead>
-    //                   </TableRow>
-    //                 </TableHeader>
-    //                 <TableBody>
-    //                   {communities.map((community) => (
-    //                     <TableRow key={community.id}>
-    //                       <TableCell>
-    //                         <div className="flex items-center gap-3">
-    //                           <Avatar className="h-8 w-8">
-    //                             <AvatarImage
-    //                               src={community.image || "/placeholder.svg"}
-    //                             />
-    //                             <AvatarFallback>
-    //                               {community.name.charAt(0)}
-    //                             </AvatarFallback>
-    //                           </Avatar>
-    //                           <div>
-    //                             <p className="font-medium">{community.name}</p>
-    //                             <p className="text-sm text-muted-foreground truncate max-w-48">
-    //                               {community.description}
-    //                             </p>
-    //                           </div>
-    //                         </div>
-    //                       </TableCell>
-    //                       <TableCell>{community.memberCount}</TableCell>
-    //                       <TableCell>
-    //                         <Badge variant="outline">{community.privacy}</Badge>
-    //                       </TableCell>
-    //                       <TableCell>
-    //                         {new Date(community.createdAt).toLocaleDateString()}
-    //                       </TableCell>
-    //                       <TableCell className="text-right">
-    //                         <DropdownMenu>
-    //                           <DropdownMenuTrigger asChild>
-    //                             <Button variant="ghost" size="icon">
-    //                               <MoreHorizontal className="h-4 w-4" />
-    //                             </Button>
-    //                           </DropdownMenuTrigger>
-    //                           <DropdownMenuContent align="end">
-    //                             <DropdownMenuItem>
-    //                               <Eye className="h-4 w-4 mr-2" />
-    //                               View Community
-    //                             </DropdownMenuItem>
-    //                             <DropdownMenuItem className="text-destructive">
-    //                               <Trash2 className="h-4 w-4 mr-2" />
-    //                               Delete Community
-    //                             </DropdownMenuItem>
-    //                           </DropdownMenuContent>
-    //                         </DropdownMenu>
-    //                       </TableCell>
-    //                     </TableRow>
-    //                   ))}
-    //                 </TableBody>
-    //               </Table>
-    //             </div>
-    //           </CardContent>
-    //         </Card>
-    //       </TabsContent>
+        {/* ── Communities Tab ── */}
+        <TabsContent value="communities" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle>Community Management</CardTitle>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search communities..."
+                    className="pl-9 sm:w-64"
+                    value={communitySearch}
+                    onChange={(e) => setCommunitySearch(e.target.value)}
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingCommunities ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Community</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Members</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredCommunities.length === 0 ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={5}
+                            className="py-8 text-center text-muted-foreground"
+                          >
+                            No communities found
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredCommunities.map((c) => (
+                          <TableRow key={c.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage
+                                    src={c.image_url || "/placeholder.svg"}
+                                    alt={c.name}
+                                  />
+                                  <AvatarFallback>
+                                    {c.name.charAt(0)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="font-medium">{c.name}</p>
+                                  <p className="max-w-48 truncate text-sm text-muted-foreground">
+                                    {c.description}
+                                  </p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {c.category || "—"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {c.community_members?.[0]?.count ?? 0}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {c.created_at
+                                ? formatDistanceToNow(new Date(c.created_at), {
+                                    addSuffix: true,
+                                  })
+                                : "—"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/communities/${c.id}`}>
+                                      <Eye className="mr-2 h-4 w-4" />
+                                      View Community
+                                    </Link>
+                                  </DropdownMenuItem>
+                                  <DeleteCommunityItem
+                                    name={c.name}
+                                    onConfirm={() => deleteCommunity(c.id)}
+                                  />
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
 
-    //       {/* Actions Log Tab */}
-    //       <TabsContent value="actions" className="space-y-4">
-    //         <Card>
-    //           <CardHeader>
-    //             <CardTitle>Admin Actions Log</CardTitle>
-    //           </CardHeader>
-    //           <CardContent>
-    //             <div className="space-y-4">
-    //               {adminActions.map((action) => {
-    //                 const admin = users.find((u) => u.id === action.adminId);
-    //                 return (
-    //                   <div
-    //                     key={action.id}
-    //                     className="flex items-start gap-4 p-4 border rounded-lg"
-    //                   >
-    //                     <div
-    //                       className={`p-2 rounded-lg ${
-    //                         action.actionType === "ban"
-    //                           ? "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-100"
-    //                           : action.actionType === "suspend"
-    //                             ? "bg-yellow-100 text-yellow-600 dark:bg-yellow-900 dark:text-yellow-100"
-    //                             : "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-100"
-    //                       }`}
-    //                     >
-    //                       {action.actionType === "ban" ? (
-    //                         <Ban className="h-4 w-4" />
-    //                       ) : action.actionType === "suspend" ? (
-    //                         <AlertTriangle className="h-4 w-4" />
-    //                       ) : (
-    //                         <CheckCircle className="h-4 w-4" />
-    //                       )}
-    //                     </div>
-    //                     <div className="flex-1">
-    //                       <p className="font-medium capitalize">
-    //                         {action.actionType} - {action.targetType}
-    //                       </p>
-    //                       <p className="text-sm text-muted-foreground">
-    //                         {action.reason}
-    //                       </p>
-    //                       <p className="text-xs text-muted-foreground mt-1">
-    //                         By {admin?.name || "Unknown"} on{" "}
-    //                         {new Date(action.createdAt).toLocaleString()}
-    //                       </p>
-    //                     </div>
-    //                   </div>
-    //                 );
-    //               })}
-    //               {adminActions.length === 0 && (
-    //                 <div className="text-center py-8 text-muted-foreground">
-    //                   No admin actions recorded
-    //                 </div>
-    //               )}
-    //             </div>
-    //           </CardContent>
-    //         </Card>
-    //       </TabsContent>
-    //     </Tabs>
-    //   </div>
-    // </Suspense>
+// ─── Report Card ──────────────────────────────────────────────────────────────
+
+function ReportCard({
+  report,
+  onResolve,
+  onDismiss,
+}: {
+  report: Report;
+  onResolve: () => void;
+  onDismiss: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const isResolved = report.status === "resolved";
+
+  return (
+    <Card className={isResolved ? "opacity-60" : ""}>
+      <CardContent className="pt-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={isResolved ? "outline" : "secondary"}>
+                {report.status}
+              </Badge>
+              <Badge variant="outline" className="capitalize">
+                {report.reported_content_type}
+              </Badge>
+            </div>
+            <p className="font-medium">{report.reason}</p>
+            {report.description && (
+              <p className="text-sm text-muted-foreground line-clamp-2">
+                {report.description}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Reported by{" "}
+              <span className="font-medium">
+                {report.reporter?.display_name ||
+                  report.reporter?.username ||
+                  "Unknown"}
+              </span>{" "}
+              {report.created_at &&
+                formatDistanceToNow(new Date(report.created_at), {
+                  addSuffix: true,
+                })}
+            </p>
+          </div>
+
+          {!isResolved && (
+            <div className="flex shrink-0 gap-2">
+              {/* Review dialog */}
+              <Dialog open={open} onOpenChange={setOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Eye className="mr-2 h-4 w-4" />
+                    Review
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Review Report</DialogTitle>
+                    <DialogDescription>
+                      Decide how to handle this reported content.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-2">
+                    <div>
+                      <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+                        Content Type
+                      </Label>
+                      <p className="mt-1 capitalize">
+                        {report.reported_content_type}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+                        Reason
+                      </Label>
+                      <p className="mt-1">{report.reason}</p>
+                    </div>
+                    {report.description && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+                          Details
+                        </Label>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {report.description}
+                        </p>
+                      </div>
+                    )}
+                    <div>
+                      <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+                        Reporter
+                      </Label>
+                      <p className="mt-1">
+                        {report.reporter?.display_name ||
+                          report.reporter?.username ||
+                          "Unknown"}
+                      </p>
+                    </div>
+                  </div>
+                  <DialogFooter className="gap-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1 bg-transparent"
+                      onClick={() => {
+                        onDismiss();
+                        setOpen(false);
+                      }}
+                    >
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Dismiss
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      onClick={() => {
+                        onResolve();
+                        setOpen(false);
+                      }}
+                    >
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      Mark Resolved
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDismiss}
+                className="text-muted-foreground"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Delete Community Confirmation ────────────────────────────────────────────
+
+function DeleteCommunityItem({
+  name,
+  onConfirm,
+}: {
+  name: string;
+  onConfirm: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <DropdownMenuItem
+          className="text-destructive focus:text-destructive"
+          onSelect={(e) => {
+            e.preventDefault(); // keep dropdown from closing before dialog opens
+            setOpen(true);
+          }}
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete Community
+        </DropdownMenuItem>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete Community</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete <strong>{name}</strong>? This action
+            cannot be undone and will remove all posts and memberships.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => {
+              onConfirm();
+              setOpen(false);
+            }}
+          >
+            <AlertTriangle className="mr-2 h-4 w-4" />
+            Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Export ───────────────────────────────────────────────────────────────────
+
+export default function AdminPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <AdminContent />
+    </Suspense>
   );
 }
