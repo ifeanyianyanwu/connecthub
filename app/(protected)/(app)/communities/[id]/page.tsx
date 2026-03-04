@@ -19,6 +19,7 @@ import {
   UserPlus,
   UserCheck,
   Clock,
+  X,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
@@ -27,6 +28,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Tables } from "@/lib/database.types";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { PostCard } from "@/components/post-card";
+import { useHandleMediaUpload } from "@/hooks/use-handle-media-upload";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -73,6 +75,14 @@ export default function CommunityDetailPage() {
   const [newPostContent, setNewPostContent] = useState("");
   const [isPosting, setIsPosting] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const {
+    handleMediaUpload,
+    isUploadingMedia,
+    error: mediaError,
+  } = useHandleMediaUpload();
+
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   // ── Fetch community + posts ──────────────────────────────────────────────
 
@@ -283,11 +293,45 @@ export default function CommunityDetailPage() {
     }
   };
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate before previewing — hook will also validate on upload,
+    // but we want to show errors immediately without waiting for submission
+    if (!file.type.startsWith("image/")) return;
+    if (file.size > 1024 * 1024) return;
+
+    setSelectedImage(file);
+    setImagePreview(URL.createObjectURL(file));
+
+    // Reset input so the same file can be reselected after removal
+    e.target.value = "";
+  };
+
+  const handleRemoveImage = () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setSelectedImage(null);
+    setImagePreview(null);
+  };
+
   // ── Create post ──────────────────────────────────────────────────────────
 
   const handleCreatePost = async () => {
     if (!newPostContent.trim() || !user?.id || !community) return;
     setIsPosting(true);
+
+    // Upload image first if one is selected
+    let imageUrl: string | null = null;
+    if (selectedImage) {
+      const uploaded = await handleMediaUpload(selectedImage);
+      if (!uploaded) {
+        // Upload failed — mediaError is already set by the hook
+        setIsPosting(false);
+        return;
+      }
+      imageUrl = uploaded;
+    }
 
     const { data, error } = await supabase
       .from("posts")
@@ -295,6 +339,7 @@ export default function CommunityDetailPage() {
         content: newPostContent,
         community_id: community.id,
         user_id: user.id,
+        image_url: imageUrl,
       })
       .select(
         "*, profiles:user_id(id, username, display_name, profile_picture, bio), likes(count), comments(count)",
@@ -304,6 +349,7 @@ export default function CommunityDetailPage() {
     if (!error && data) {
       setPosts((prev) => [{ ...data, isLiked: false } as Post, ...prev]);
       setNewPostContent("");
+      handleRemoveImage();
     } else {
       console.error("Error creating post:", error);
     }
@@ -447,10 +493,6 @@ export default function CommunityDetailPage() {
             <div className="flex-1 sm:pb-2">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-bold">{community.name}</h1>
-                <Badge variant="secondary" className="gap-1">
-                  <Globe className="h-3 w-3" />
-                  Public
-                </Badge>
               </div>
               {community.category && (
                 <Badge variant="outline" className="mt-2">
@@ -528,6 +570,7 @@ export default function CommunityDetailPage() {
                         {user?.user_metadata?.name?.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
+
                     <div className="flex-1 space-y-3">
                       <Textarea
                         placeholder={`Share something with ${community.name}...`}
@@ -536,14 +579,71 @@ export default function CommunityDetailPage() {
                         rows={3}
                         className="resize-none"
                       />
+
+                      {/* Image preview */}
+                      {imagePreview && (
+                        <div className="relative w-full overflow-hidden rounded-lg border border-border">
+                          <div className="relative aspect-video">
+                            <Image
+                              src={imagePreview}
+                              alt="Selected image"
+                              fill
+                              className="object-cover"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="icon"
+                            className="absolute right-2 top-2 h-7 w-7 rounded-full bg-background/80 backdrop-blur-sm"
+                            onClick={handleRemoveImage}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Upload error from hook */}
+                      {mediaError && (
+                        <p className="text-xs text-destructive">{mediaError}</p>
+                      )}
+
                       <div className="flex items-center justify-between">
-                        <Button variant="ghost" size="sm" disabled>
-                          <ImageIcon className="mr-2 h-4 w-4" />
-                          Add Image
-                        </Button>
+                        {/* Hidden file input triggered by the button */}
+                        <label htmlFor="post-image-upload">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            asChild
+                            disabled={isUploadingMedia || !!selectedImage}
+                          >
+                            <span className="cursor-pointer">
+                              {isUploadingMedia ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <ImageIcon className="mr-2 h-4 w-4" />
+                              )}
+                              {selectedImage ? "Image selected" : "Add Image"}
+                            </span>
+                          </Button>
+                          <input
+                            id="post-image-upload"
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleImageSelect}
+                            disabled={isUploadingMedia || !!selectedImage}
+                          />
+                        </label>
+
                         <Button
                           onClick={handleCreatePost}
-                          disabled={!newPostContent.trim() || isPosting}
+                          disabled={
+                            (!newPostContent.trim() && !selectedImage) ||
+                            isPosting ||
+                            isUploadingMedia
+                          }
                         >
                           {isPosting ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
