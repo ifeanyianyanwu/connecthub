@@ -41,6 +41,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useCurrentUserHobbies } from "@/hooks/use-current-user-hobbies";
 import { useHandleAvatarUpload } from "@/hooks/use-handle-avatar-upload";
 import { Hobby } from "@/lib/types";
+import { useTheme } from "next-themes";
 
 type ProfileData = {
   name: string;
@@ -52,6 +53,7 @@ type ProfileData = {
 };
 
 export default function SettingsPage() {
+  const { setTheme, theme } = useTheme();
   const { user, loading } = useCurrentUser();
   const { handleAvatarUpload, isUploadingAvatar } = useHandleAvatarUpload();
   const { hobbies: userHobbies } = useCurrentUserHobbies();
@@ -262,7 +264,7 @@ export default function SettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-6 w-full justify-start overflow-x-auto">
+        <TabsList className="mb-6 w-full justify-start">
           <TabsTrigger value="profile" className="gap-2">
             <User className="h-4 w-4" />
             <span className="hidden sm:inline">Profile</span>
@@ -482,15 +484,33 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-3 gap-4">
-                <button className="flex flex-col items-center gap-2 rounded-lg border-2 border-foreground p-4">
-                  <div className="h-12 w-12 rounded-full bg-background border border-border" />
+                <button
+                  className={cn(
+                    "flex flex-col items-center gap-2 rounded-lg border border-border p-4",
+                    theme === "light" && "border-2 border-foreground",
+                  )}
+                  onClick={() => setTheme("light")}
+                >
+                  <div className="h-12 w-12 rounded-full bg-white border border-border hover:border-foreground/50" />
                   <span className="text-sm font-medium">Light</span>
                 </button>
-                <button className="flex flex-col items-center gap-2 rounded-lg border border-border p-4 hover:border-foreground/50">
-                  <div className="h-12 w-12 rounded-full bg-neutral-900" />
+                <button
+                  className={cn(
+                    "flex flex-col items-center gap-2 rounded-lg border border-border p-4",
+                    theme === "dark" && "border-2 border-foreground",
+                  )}
+                  onClick={() => setTheme("dark")}
+                >
+                  <div className="h-12 w-12 rounded-full bg-neutral-900 hover:border-foreground/50" />
                   <span className="text-sm">Dark</span>
                 </button>
-                <button className="flex flex-col items-center gap-2 rounded-lg border border-border p-4 hover:border-foreground/50">
+                <button
+                  className={cn(
+                    "flex flex-col items-center gap-2 rounded-lg border border-border p-4 hover:border-foreground/50",
+                    theme === "system" && "border-2 border-foreground",
+                  )}
+                  onClick={() => setTheme("system")}
+                >
                   <div className="h-12 w-12 rounded-full bg-linear-to-br from-background to-neutral-900" />
                   <span className="text-sm">System</span>
                 </button>
