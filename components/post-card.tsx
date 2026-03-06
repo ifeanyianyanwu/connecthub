@@ -13,6 +13,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -52,13 +53,10 @@ type Profile = Pick<
   "id" | "username" | "display_name" | "profile_picture"
 >;
 
-// Comment with its author profile joined
 type Comment = Tables<"comments"> & {
   profiles: Profile;
 };
 
-// Post shape — comments now include full rows (loaded lazily), count kept for
-// the initial render before the section is opened
 export type Post = Tables<"posts"> & {
   profiles: Profile;
   likes: { count: number }[];
@@ -85,14 +83,17 @@ export function PostCard({
   currentUserId,
   currentUserProfile,
   onToggleLike,
+  onDelete,
 }: {
   post: Post;
   currentUserId?: string;
   currentUserProfile?: Profile | null;
   onToggleLike: () => void;
+  onDelete?: (postId: string) => void; // called after successful deletion so parent can remove from list
 }) {
-  // ✅ Stable supabase reference
   const supabase = useMemo(() => createClient(), []);
+
+  const isOwnPost = post.user_id === currentUserId;
 
   // ── Comment state ────────────────────────────────────────────────────────
   const [showComments, setShowComments] = useState(false);
@@ -105,6 +106,11 @@ export function PostCard({
     post.comments[0]?.count ?? 0,
   );
 
+  // ── Delete state ─────────────────────────────────────────────────────────
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletingPost, setDeletingPost] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   // ── Report state ─────────────────────────────────────────────────────────
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
@@ -112,7 +118,7 @@ export function PostCard({
   const [submittingReport, setSubmittingReport] = useState(false);
   const [reportSubmitted, setReportSubmitted] = useState(false);
 
-  // ── Fetch comments (lazy — only on first open) ───────────────────────────
+  // ── Fetch comments ────────────────────────────────────────────────────────
 
   const fetchComments = useCallback(async () => {
     setLoadingComments(true);
@@ -135,13 +141,10 @@ export function PostCard({
   const handleToggleComments = () => {
     const next = !showComments;
     setShowComments(next);
-    // Only fetch the first time the section is opened
-    if (next && !commentsFetched) {
-      fetchComments();
-    }
+    if (next && !commentsFetched) fetchComments();
   };
 
-  // ── Submit comment ───────────────────────────────────────────────────────
+  // ── Submit comment ────────────────────────────────────────────────────────
 
   const handleSubmitComment = async () => {
     if (!newComment.trim() || !currentUserId || submittingComment) return;
@@ -176,14 +179,14 @@ export function PostCard({
     }
   };
 
-  // ── Delete own comment ───────────────────────────────────────────────────
+  // ── Delete own comment ────────────────────────────────────────────────────
 
   const handleDeleteComment = async (commentId: string) => {
     const { error } = await supabase
       .from("comments")
       .delete()
       .eq("id", commentId)
-      .eq("user_id", currentUserId!); // RLS double-check
+      .eq("user_id", currentUserId!);
 
     if (!error) {
       setComments((prev) => prev.filter((c) => c.id !== commentId));
@@ -191,7 +194,38 @@ export function PostCard({
     }
   };
 
-  // ── Submit report ────────────────────────────────────────────────────────
+  // ── Delete post ───────────────────────────────────────────────────────────
+  // Likes and comments are removed automatically by ON DELETE CASCADE on their
+  // foreign keys — no extra queries needed here.
+
+  const handleDeletePost = async () => {
+    if (!currentUserId || deletingPost) return;
+    setDeletingPost(true);
+    setDeleteError(null);
+
+    const { error } = await supabase
+      .from("posts")
+      .delete()
+      .eq("id", post.id)
+      .eq("user_id", currentUserId); // RLS double-check: only own posts
+
+    if (error) {
+      setDeleteError("Failed to delete post. Please try again.");
+      setDeletingPost(false);
+      return;
+    }
+
+    setDeleteOpen(false);
+    onDelete?.(post.id); // tell parent to remove this card from the list
+  };
+
+  const handleCloseDelete = () => {
+    if (deletingPost) return; // prevent closing mid-delete
+    setDeleteOpen(false);
+    setDeleteError(null);
+  };
+
+  // ── Submit report ─────────────────────────────────────────────────────────
 
   const handleSubmitReport = async () => {
     if (!reportReason || !currentUserId || submittingReport) return;
@@ -206,15 +240,12 @@ export function PostCard({
       status: "pending",
     });
 
-    if (!error) {
-      setReportSubmitted(true);
-    }
+    if (!error) setReportSubmitted(true);
     setSubmittingReport(false);
   };
 
   const handleCloseReport = () => {
     setReportOpen(false);
-    // Reset after dialog close animation finishes
     setTimeout(() => {
       setReportReason("");
       setReportDescription("");
@@ -267,14 +298,33 @@ export function PostCard({
                   <Bookmark className="mr-2 h-4 w-4" />
                   Save post
                 </DropdownMenuItem>
-                {post.user_id !== currentUserId && (
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onClick={() => setReportOpen(true)}
-                  >
-                    <Flag className="mr-2 h-4 w-4" />
-                    Report
-                  </DropdownMenuItem>
+
+                {/* Own post: show delete */}
+                {isOwnPost && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => setDeleteOpen(true)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete post
+                    </DropdownMenuItem>
+                  </>
+                )}
+
+                {/* Other user's post: show report */}
+                {!isOwnPost && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => setReportOpen(true)}
+                    >
+                      <Flag className="mr-2 h-4 w-4" />
+                      Report
+                    </DropdownMenuItem>
+                  </>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
@@ -326,16 +376,15 @@ export function PostCard({
             </Button>
           </div>
 
-          {/* ── Comments section ── */}
+          {/* Comments section */}
           {showComments && (
             <div className="space-y-4 border-t border-border pt-4">
-              {/* Existing comments */}
               {loadingComments ? (
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 </div>
               ) : comments.length === 0 ? (
-                <p className="text-center text-sm text-muted-foreground py-2">
+                <p className="py-2 text-center text-sm text-muted-foreground">
                   No comments yet. Be the first!
                 </p>
               ) : (
@@ -351,10 +400,9 @@ export function PostCard({
                 </div>
               )}
 
-              {/* New comment input */}
               {currentUserId && (
                 <div className="flex items-start gap-3">
-                  <Avatar className="h-8 w-8 shrink-0 mt-0.5">
+                  <Avatar className="mt-0.5 h-8 w-8 shrink-0">
                     <AvatarImage
                       src={
                         currentUserProfile?.profile_picture ||
@@ -377,7 +425,7 @@ export function PostCard({
                       onChange={(e) => setNewComment(e.target.value)}
                       onKeyDown={handleCommentKeyDown}
                       rows={1}
-                      className="flex-1 min-h-9 resize-none"
+                      className="min-h-9 flex-1 resize-none"
                       disabled={submittingComment}
                     />
                     <Button
@@ -400,7 +448,46 @@ export function PostCard({
         </CardContent>
       </Card>
 
-      {/* ── Report Dialog ── */}
+      {/* ── Delete confirmation dialog ── */}
+      <Dialog open={deleteOpen} onOpenChange={handleCloseDelete}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete post</DialogTitle>
+            <DialogDescription>
+              This will permanently delete your post along with all its likes
+              and comments. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          {deleteError && (
+            <p className="text-sm text-destructive">{deleteError}</p>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={handleCloseDelete}
+              disabled={deletingPost}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeletePost}
+              disabled={deletingPost}
+            >
+              {deletingPost ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Report dialog ── */}
       <Dialog open={reportOpen} onOpenChange={handleCloseReport}>
         <DialogContent>
           <DialogHeader>
@@ -449,7 +536,7 @@ export function PostCard({
                 <div className="space-y-2">
                   <Label htmlFor="report-description">
                     Additional details{" "}
-                    <span className="text-muted-foreground text-xs">
+                    <span className="text-xs text-muted-foreground">
                       (optional)
                     </span>
                   </Label>
@@ -503,7 +590,7 @@ function CommentRow({
   const isOwn = comment.user_id === currentUserId;
 
   return (
-    <div className="flex items-start gap-3 group">
+    <div className="group flex items-start gap-3">
       <Link href={`/user/${comment.profiles.id}`} className="shrink-0">
         <Avatar className="h-7 w-7">
           <AvatarImage
@@ -520,14 +607,14 @@ function CommentRow({
         </Avatar>
       </Link>
 
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="rounded-2xl bg-muted px-3 py-2">
           <Link href={`/user/${comment.profiles.id}`}>
             <span className="text-sm font-medium hover:underline">
               {comment.profiles.display_name || comment.profiles.username}
             </span>
           </Link>
-          <p className="text-sm whitespace-pre-wrap wrap-break-word mt-0.5">
+          <p className="mt-0.5 whitespace-pre-wrap wrap-break-word text-sm">
             {comment.content}
           </p>
         </div>
@@ -539,12 +626,11 @@ function CommentRow({
         </p>
       </div>
 
-      {/* Delete own comment */}
       {isOwn && (
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+          className="h-7 w-7 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 text-muted-foreground hover:text-destructive"
           onClick={onDelete}
         >
           <Trash2 className="h-3.5 w-3.5" />

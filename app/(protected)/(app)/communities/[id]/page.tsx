@@ -10,7 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Users,
-  Globe,
   ArrowLeft,
   MessageCircle,
   Send,
@@ -681,6 +680,9 @@ export default function CommunityDetailPage() {
                   currentUserId={user?.id}
                   currentUserProfile={user?.profile}
                   onToggleLike={() => toggleLike(post)}
+                  onDelete={(postId: string) =>
+                    setPosts((prev) => prev.filter((p) => p.id !== postId))
+                  }
                 />
               ))
             )}
