@@ -1,9 +1,11 @@
 "use client";
 
-import { formatDistanceToNow } from 'date-fns';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { useNotificationStore } from '@/lib/store';
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { formatDistanceToNow } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { createClient } from "@/lib/supabase/client";
+import { Tables } from "@/lib/database.types";
 import {
   Bell,
   UserPlus,
@@ -12,10 +14,17 @@ import {
   Users,
   Check,
   X,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
+  Loader2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 
-const iconMap = {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Notification = Tables<"notifications">;
+
+const iconMap: Record<string, React.ElementType> = {
   connection_request: UserPlus,
   connection_accepted: UserPlus,
   message: MessageCircle,
@@ -28,11 +37,108 @@ interface NotificationPanelProps {
   onClose: () => void;
 }
 
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export function NotificationPanel({ onClose }: NotificationPanelProps) {
-  const { notifications, markAsRead, markAllAsRead, unreadCount } = useNotificationStore();
+  const { user } = useCurrentUser();
+  const supabase = useMemo(() => createClient(), []);
+
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const unreadCount = useUnreadNotifications();
+
+  // const unreadCount = notifications.filter((n) => !n.read).length;
+
+  // ── Fetch notifications ──────────────────────────────────────────────────
+
+  const fetchNotifications = useCallback(async () => {
+    if (!user?.id) return;
+
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (!error && data) setNotifications(data);
+  }, [user, supabase]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setLoading(true);
+      await fetchNotifications();
+      if (!cancelled) setLoading(false);
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchNotifications]);
+
+  // ── Real-time: new notifications pushed while panel is open ─────────────
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`notifications:user:${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          setNotifications((prev) => [payload.new as Notification, ...prev]);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, supabase]);
+
+  // ── Mark single notification as read ────────────────────────────────────
+
+  const markAsRead = async (id: string) => {
+    // Optimistic update
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
+    );
+
+    await supabase
+      .from("notifications")
+      .update({ read: true })
+      .eq("id", id)
+      .eq("user_id", user!.id); // RLS guard
+  };
+
+  // ── Mark all as read ─────────────────────────────────────────────────────
+
+  const markAllAsRead = async () => {
+    // Optimistic update
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+
+    await supabase
+      .from("notifications")
+      .update({ read: true })
+      .eq("user_id", user!.id)
+      .eq("read", false);
+  };
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="flex h-full flex-col">
+      {/* Header */}
       <div className="flex items-center justify-between border-b border-border p-4">
         <div className="flex items-center gap-2">
           <Bell className="h-5 w-5" />
@@ -57,46 +163,61 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
         </div>
       </div>
 
+      {/* Body */}
       <ScrollArea className="flex-1">
-        {notifications.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Bell className="mb-4 h-12 w-12 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">No notifications yet</p>
+            <p className="text-sm text-muted-foreground">
+              No notifications yet
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-border">
             {notifications.map((notification) => {
-              const Icon = iconMap[notification.type] || Bell;
+              const Icon = iconMap[notification.type] ?? Bell;
               return (
                 <button
                   key={notification.id}
-                  onClick={() => markAsRead(notification.id)}
+                  onClick={() =>
+                    !notification.read && markAsRead(notification.id)
+                  }
                   className={cn(
-                    'flex w-full items-start gap-3 p-4 text-left transition-colors hover:bg-muted',
-                    !notification.isRead && 'bg-muted/50'
+                    "flex w-full items-start gap-3 p-4 text-left transition-colors hover:bg-muted",
+                    !notification.read && "bg-muted/50",
                   )}
                 >
                   <div
                     className={cn(
-                      'flex h-10 w-10 shrink-0 items-center justify-center rounded-full',
-                      notification.isRead ? 'bg-muted' : 'bg-foreground'
+                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
+                      notification.read ? "bg-muted" : "bg-foreground",
                     )}
                   >
                     <Icon
                       className={cn(
-                        'h-5 w-5',
-                        notification.isRead ? 'text-muted-foreground' : 'text-background'
+                        "h-5 w-5",
+                        notification.read
+                          ? "text-muted-foreground"
+                          : "text-background",
                       )}
                     />
                   </div>
                   <div className="flex-1 space-y-1">
                     <p className="text-sm font-medium">{notification.title}</p>
-                    <p className="text-sm text-muted-foreground">{notification.message}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {notification.message}
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
+                      {formatDistanceToNow(new Date(notification.created_at!), {
+                        addSuffix: true,
+                      })}
                     </p>
                   </div>
-                  {!notification.isRead && (
+                  {!notification.read && (
                     <div className="h-2 w-2 shrink-0 rounded-full bg-foreground" />
                   )}
                 </button>

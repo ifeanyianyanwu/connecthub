@@ -31,11 +31,11 @@ import {
   EllipsisVertical,
 } from "lucide-react";
 
-import { useNotificationStore } from "@/lib/store";
 import { NotificationPanel } from "@/components/notifications/notification-panel";
 import { CurrentUserAvatar } from "../current-user-avatar";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { createClient } from "@/lib/supabase/client";
+import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 
 const navigation = [
   { name: "Home", href: "/home", icon: Home },
@@ -48,7 +48,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useCurrentUser();
-  const { unreadCount } = useNotificationStore();
+  const unreadCount = useUnreadNotifications();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
 
@@ -297,7 +297,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <span className="sr-only">Notifications</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-full max-w-md p-0">
+            <SheetContent
+              side="right"
+              className="w-full max-w-md p-0"
+              showCloseButton={false}
+            >
               <NotificationPanel onClose={() => setNotificationOpen(false)} />
             </SheetContent>
           </Sheet>
@@ -319,7 +323,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <span className="sr-only">Notifications</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-full max-w-md p-0">
+            <SheetContent
+              side="right"
+              className="w-full max-w-md p-0"
+              showCloseButton={false}
+            >
               <NotificationPanel onClose={() => setNotificationOpen(false)} />
             </SheetContent>
           </Sheet>
