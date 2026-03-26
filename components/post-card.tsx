@@ -45,6 +45,7 @@ import {
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Tables } from "@/lib/database.types";
+import { sendNewCommentNotification } from "@/app/actions/notify";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -166,6 +167,13 @@ export function PostCard({
       setComments((prev) => [...prev, data as Comment]);
       setCommentCount((n) => n + 1);
       setNewComment("");
+
+      sendNewCommentNotification(
+        post.user_id,
+        currentUserId,
+        currentUserProfile?.display_name || "",
+        post.community_id,
+      ).catch(console.error);
     }
     setSubmittingComment(false);
   };

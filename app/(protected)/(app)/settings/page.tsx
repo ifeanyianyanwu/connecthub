@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
+// import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -42,6 +42,7 @@ import { useCurrentUserHobbies } from "@/hooks/use-current-user-hobbies";
 import { useHandleAvatarUpload } from "@/hooks/use-handle-avatar-upload";
 import { Hobby } from "@/lib/types";
 import { useTheme } from "next-themes";
+import { PushNotificationToggle } from "@/components/push-notification-toggle";
 
 type ProfileData = {
   name: string;
@@ -72,9 +73,9 @@ export default function SettingsPage() {
   const [profileData, setProfileData] = useState<ProfileData>(
     {} as ProfileData,
   );
-  const [notificationSettings, setNotificationSettings] = useState({
-    pushNotifications: true,
-  });
+  // const [notificationSettings, setNotificationSettings] = useState({
+  //   pushNotifications: true,
+  // });
   const supabase = createClient();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -99,9 +100,9 @@ export default function SettingsPage() {
         location: user?.profile?.location || "",
       }));
       setUserHobbiesState(userHobbies.map((h) => h.id));
-      setNotificationSettings({
-        pushNotifications: user?.profile?.push_notifications ?? true,
-      });
+      // setNotificationSettings({
+      //   pushNotifications: user?.profile?.push_notifications ?? true,
+      // });
     };
 
     updateLocalState();
@@ -190,31 +191,31 @@ export default function SettingsPage() {
     }
   };
 
-  const togglePushNotifications = async (value: boolean) => {
-    setActionLoading("notifications");
-    try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          push_notifications: value,
-        })
-        .eq("id", user!.id);
+  // const togglePushNotifications = async (value: boolean) => {
+  //   setActionLoading("notifications");
+  //   try {
+  //     const { error } = await supabase
+  //       .from("profiles")
+  //       .update({
+  //         push_notifications: value,
+  //       })
+  //       .eq("id", user!.id);
 
-      if (error) {
-        console.error("Error updating notification settings", error);
-        throw error;
-      } else {
-        setNotificationSettings((prev) => ({
-          ...prev,
-          pushNotifications: value,
-        }));
-      }
-    } catch (error) {
-      console.error("Error updating notification settings", error);
-    } finally {
-      setActionLoading(null);
-    }
-  };
+  //     if (error) {
+  //       console.error("Error updating notification settings", error);
+  //       throw error;
+  //     } else {
+  //       setNotificationSettings((prev) => ({
+  //         ...prev,
+  //         pushNotifications: value,
+  //       }));
+  //     }
+  //   } catch (error) {
+  //     console.error("Error updating notification settings", error);
+  //   } finally {
+  //     setActionLoading(null);
+  //   }
+  // };
 
   const handleAvatarInputChange = async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -462,13 +463,15 @@ export default function SettingsPage() {
                     Receive push notifications on your device
                   </p>
                 </div>
-                <Switch
+                <PushNotificationToggle />
+
+                {/* <Switch
                   checked={notificationSettings.pushNotifications}
                   onCheckedChange={(checked) =>
                     togglePushNotifications(checked)
                   }
                   disabled={actionLoading === "notifications"}
-                />
+                /> */}
               </div>
             </CardContent>
           </Card>
