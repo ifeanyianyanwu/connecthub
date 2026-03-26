@@ -62,7 +62,6 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.variable} font-sans antialiased`}>
-        <PWARegister />
         <Toaster position="top-right" />
         <ThemeProvider
           attribute="class"
