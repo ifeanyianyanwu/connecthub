@@ -5,7 +5,9 @@ import { Analytics } from "@vercel/analytics/next";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
+
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -60,6 +62,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.variable} font-sans antialiased`}>
+        <PWARegister />
         <Toaster position="top-right" />
         <ThemeProvider
           attribute="class"

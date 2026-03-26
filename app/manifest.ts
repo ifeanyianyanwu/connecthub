@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "ConnectHub",
     short_name: "ConnectHub",
-    description: "Time tracking and delivery management for mobile teams",
+    description: "Connect with people who share your hobbies",
     start_url: "/",
     display: "standalone",
     theme_color: "#ffffff",
