@@ -1,21 +1,10 @@
-import withSerwistInit from "@serwist/next";
 import { NextConfig } from "next";
-
-const withSerwist = withSerwistInit({
-  swSrc: "app/sw.ts",
-  swDest: "public/sw.js",
-  cacheOnNavigation: true,
-  reloadOnOnline: true,
-  disable: process.env.NODE_ENV === "development",
-});
-
 import withSerwistInit from "@serwist/next";
 
 const withSerwist = withSerwistInit({
   swSrc: "app/sw.ts", // your service worker source
   swDest: "public/sw.js", // where the compiled SW goes
-  reloadOnOnline: false, // IMPORTANT: prevents forced page reload when
-  // coming back online — would wipe unsaved form data
+  reloadOnOnline: false, // IMPORTANT: prevents forced page reload when coming back online — would wipe unsaved form data
   disable: process.env.NODE_ENV === "development", // avoid cache hell during dev
 });
 
