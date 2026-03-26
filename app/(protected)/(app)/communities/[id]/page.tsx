@@ -28,6 +28,7 @@ import { Tables } from "@/lib/database.types";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { PostCard } from "@/components/post-card";
 import { useHandleMediaUpload } from "@/hooks/use-handle-media-upload";
+import { sendPostLikedNotification } from "@/app/actions/notify";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -358,6 +359,7 @@ export default function CommunityDetailPage() {
   // ── Toggle like ──────────────────────────────────────────────────────────
 
   const toggleLike = async (post: Post) => {
+    // TODO: Add error handling and revert optimistic update on failure. This is a bit tricky because we don't want to block the UI while waiting for the request, but we also don't want to leave the UI in an inconsistent state if the request fails. One approach could be to keep track of pending like/unlike actions in a separate state variable, and only revert if the specific action fails.
     if (!user?.id) return;
 
     // Optimistic update
@@ -388,6 +390,13 @@ export default function CommunityDetailPage() {
       await supabase
         .from("likes")
         .insert({ post_id: post.id, user_id: user.id });
+
+      sendPostLikedNotification(
+        post.user_id,
+        user.id,
+        user.profile!.display_name!,
+        communityId,
+      ).catch(console.error);
     }
   };
 

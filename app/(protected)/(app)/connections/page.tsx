@@ -34,6 +34,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Connection, Profile } from "@/lib/types";
+import { sendConnectionAcceptedNotification } from "@/app/actions/notify";
 
 export default function ConnectionsPage() {
   const router = useRouter();
@@ -148,6 +149,12 @@ export default function ConnectionsPage() {
       // Move from pending to accepted in local state for immediate feedback
       setPendingRequests((prev) => prev.filter((r) => r.id !== requestId));
       setConnections((prev) => [...prev, data]);
+
+      sendConnectionAcceptedNotification(
+        data.user1_id,
+        data.user2_id,
+        data.user2_profile?.display_name || "",
+      ).catch(console.error);
     } catch {
       toast.error("Could not accept request");
     } finally {

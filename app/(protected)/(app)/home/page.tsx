@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import Loading from "./loading";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { Profile } from "@/lib/types";
+import { sendConnectionRequestNotification } from "@/app/actions/notify";
 
 type UserProfile = Omit<
   Profile,
@@ -139,6 +140,12 @@ export default function DiscoverPage() {
         user2_id: targetUserId,
       });
       if (error) throw error;
+
+      sendConnectionRequestNotification(
+        targetUserId,
+        user.id,
+        user.profile?.display_name || "",
+      ).catch(console.error);
     } catch (error) {
       console.error("Error sending request:", error);
       setConnectionMap((prev) => {

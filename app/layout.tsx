@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -12,7 +13,6 @@ export const metadata: Metadata = {
   title: "ConnectHub - Build Meaningful Connections",
   description:
     "A social platform for building authentic connections based on shared interests, goals, and values.",
-  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -46,6 +46,7 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
+        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -66,6 +67,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <PwaInstallPrompt />
           {children}
         </ThemeProvider>
         <Analytics />
