@@ -7,13 +7,14 @@ export function useCurrentUserHobbies() {
   const [hobbies, setHobbies] = useState<{ name: string; id: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<PostgrestError>();
-  const supabase = createClient();
   const { user } = useCurrentUser();
 
   useEffect(() => {
     if (!user) return;
 
     const fetchHobbies = async () => {
+      const supabase = createClient();
+
       const { data, error } = await supabase
         .from("user_hobbies")
         .select("hobbies(name,id)")
@@ -30,7 +31,7 @@ export function useCurrentUserHobbies() {
     };
 
     fetchHobbies();
-  }, [user, supabase]);
+  }, [user]);
 
   return { hobbies, loading, error };
 }

@@ -38,7 +38,6 @@ import { sendConnectionAcceptedNotification } from "@/app/actions/notify";
 
 export default function ConnectionsPage() {
   const router = useRouter();
-  const supabase = createClient();
   const { user } = useCurrentUser();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -50,6 +49,8 @@ export default function ConnectionsPage() {
 
   const fetchAllData = useCallback(async () => {
     if (!user) return;
+    const supabase = createClient();
+
     try {
       const [acceptedRes, pendingRes] = await Promise.all([
         supabase
@@ -87,10 +88,12 @@ export default function ConnectionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, supabase]);
+  }, [user]);
 
   useEffect(() => {
     fetchAllData();
+
+    const supabase = createClient();
 
     // REAL-TIME: Subscribing to changes involving the current user
     const channel = supabase
@@ -111,7 +114,7 @@ export default function ConnectionsPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, fetchAllData, supabase]);
+  }, [user, fetchAllData]);
 
   const getOtherUser = (connection: Connection): Profile | null => {
     if (!user) return null;
@@ -132,6 +135,8 @@ export default function ConnectionsPage() {
 
   const handleAcceptRequest = async (requestId: string) => {
     setActionLoading(requestId);
+    const supabase = createClient();
+
     try {
       const { data, error } = await supabase
         .from("connections")
@@ -164,6 +169,8 @@ export default function ConnectionsPage() {
 
   const handleRejectRequest = async (requestId: string) => {
     setActionLoading(requestId);
+    const supabase = createClient();
+
     try {
       const { error } = await supabase
         .from("connections")
@@ -182,6 +189,8 @@ export default function ConnectionsPage() {
   const handleRemoveConnection = async (connectionId: string) => {
     if (!confirm("Remove this connection?")) return;
     setActionLoading(connectionId);
+    const supabase = createClient();
+
     try {
       const { error } = await supabase
         .from("connections")

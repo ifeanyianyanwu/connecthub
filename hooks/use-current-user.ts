@@ -8,36 +8,36 @@ export function useCurrentUser() {
     null,
   );
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
 
-  const fetchUserWithProfile = useCallback(
-    async (authUser: User) => {
-      try {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", authUser.id)
-          .single();
+  const fetchUserWithProfile = useCallback(async (authUser: User) => {
+    const supabase = createClient();
 
-        setUser({
-          ...authUser,
-          profile,
-        });
-      } catch (error) {
-        console.error("Error fetching profile:", error);
-        setUser({
-          ...authUser,
-          profile: null,
-        });
-      } finally {
-        setLoading(false);
-      }
-    },
-    [supabase],
-  );
+    try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authUser.id)
+        .single();
+
+      setUser({
+        ...authUser,
+        profile,
+      });
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+      setUser({
+        ...authUser,
+        profile: null,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     // Get initial user
+    const supabase = createClient();
+
     supabase.auth.getUser().then(({ data: { user: authUser } }) => {
       if (authUser) {
         fetchUserWithProfile(authUser);
@@ -60,7 +60,7 @@ export function useCurrentUser() {
     });
 
     return () => subscription.unsubscribe();
-  }, [supabase, fetchUserWithProfile]);
+  }, [fetchUserWithProfile]);
 
   return { user, loading };
 }

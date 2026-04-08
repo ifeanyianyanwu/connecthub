@@ -68,13 +68,14 @@ export default function DiscoverPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const supabase = createClient();
   const { user } = useCurrentUser();
 
   useEffect(() => {
     if (!user) return;
 
     const fetchData = async () => {
+      const supabase = createClient();
+
       try {
         setLoading(true);
 
@@ -126,10 +127,12 @@ export default function DiscoverPage() {
     };
 
     fetchData();
-  }, [user, supabase]);
+  }, [user]);
 
   const handleConnect = async (targetUserId: string) => {
     if (!user) return;
+    const supabase = createClient();
+
     try {
       setActionLoading(targetUserId);
       setConnectionMap((prev) =>

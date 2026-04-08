@@ -34,13 +34,12 @@ export default function ProfilePage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const supabase = createClient();
-
   useEffect(() => {
     if (!authUser) return;
 
     const fetchData = async () => {
       setLoading(true);
+      const supabase = createClient();
 
       // Fetch posts
       const { data, error } = await supabase
@@ -76,7 +75,7 @@ export default function ProfilePage() {
     };
 
     fetchData();
-  }, [authUser, supabase]);
+  }, [authUser]);
 
   if (loading) {
     return (

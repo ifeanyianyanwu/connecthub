@@ -76,7 +76,6 @@ export default function SettingsPage() {
   // const [notificationSettings, setNotificationSettings] = useState({
   //   pushNotifications: true,
   // });
-  const supabase = createClient();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,6 +83,8 @@ export default function SettingsPage() {
     if (!user) return;
 
     const fetchHobbies = async () => {
+      const supabase = createClient();
+
       const { data: hobbies } = await supabase.from("hobbies").select("*");
       setHobbiesState(hobbies || []);
 
@@ -107,7 +108,7 @@ export default function SettingsPage() {
 
     updateLocalState();
     fetchHobbies();
-  }, [user, userHobbies, supabase]);
+  }, [user, userHobbies]);
 
   useEffect(() => {
     return () => {
@@ -119,6 +120,8 @@ export default function SettingsPage() {
 
   const handleSaveProfile = async () => {
     setActionLoading("profile");
+    const supabase = createClient();
+
     try {
       const hobbyInserts = userHobbiesState.map((hobbyId) => ({
         user_id: user!.id,

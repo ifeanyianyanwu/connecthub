@@ -66,6 +66,8 @@ export function PwaInstallPrompt() {
             src="/icons/icon-72x72.png"
             alt="ConnectHub"
             className="h-12 w-12 rounded-xl shrink-0"
+            width={100}
+            height={100}
           />
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm">Add to Home Screen</p>
