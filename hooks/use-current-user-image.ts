@@ -1,4 +1,4 @@
-import { useCurrentUser } from "./use-current-user";
+import { useCurrentUser } from "@/components/providers/current-user-provider";
 
 export function useCurrentUserImage() {
   const { user } = useCurrentUser();

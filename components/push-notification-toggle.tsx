@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import { Switch } from "@/components/ui/switch";
 import { createClient } from "@/lib/supabase/client";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { useCurrentUser } from "@/components/providers/current-user-provider";
 
 export function PushNotificationToggle() {
   const [supported, setSupported] = useState(false);

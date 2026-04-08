@@ -32,7 +32,7 @@ import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { Connection, Profile } from "@/lib/types";
 import { sendConnectionAcceptedNotification } from "@/app/actions/notify";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,7 +17,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -41,7 +41,6 @@ interface NotificationPanelProps {
 
 export function NotificationPanel({ onClose }: NotificationPanelProps) {
   const { user } = useCurrentUser();
-  const supabase = useMemo(() => createClient(), []);
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,6 +53,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
 
   const fetchNotifications = useCallback(async () => {
     if (!user?.id) return;
+    const supabase = createClient();
 
     const { data, error } = await supabase
       .from("notifications")
@@ -63,7 +63,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
       .limit(50);
 
     if (!error && data) setNotifications(data);
-  }, [user, supabase]);
+  }, [user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +84,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
 
   useEffect(() => {
     if (!user?.id) return;
+    const supabase = createClient();
 
     const channel = supabase
       .channel(`notifications:user:${user.id}`)
@@ -104,7 +105,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, supabase]);
+  }, [user?.id]);
 
   // ── Mark single notification as read ────────────────────────────────────
 
@@ -113,6 +114,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
+    const supabase = createClient();
 
     await supabase
       .from("notifications")
@@ -126,6 +128,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
   const markAllAsRead = async () => {
     // Optimistic update
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    const supabase = createClient();
 
     await supabase
       .from("notifications")

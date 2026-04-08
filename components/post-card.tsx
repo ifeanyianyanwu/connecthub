@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback,  } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { formatDistanceToNow } from "date-fns";
@@ -92,8 +92,6 @@ export function PostCard({
   onToggleLike: () => void;
   onDelete?: (postId: string) => void; // called after successful deletion so parent can remove from list
 }) {
-  const supabase = useMemo(() => createClient(), []);
-
   const isOwnPost = post.user_id === currentUserId;
 
   // ── Comment state ────────────────────────────────────────────────────────
@@ -123,6 +121,7 @@ export function PostCard({
 
   const fetchComments = useCallback(async () => {
     setLoadingComments(true);
+    const supabase = createClient();
 
     const { data, error } = await supabase
       .from("comments")
@@ -137,7 +136,7 @@ export function PostCard({
       setCommentsFetched(true);
     }
     setLoadingComments(false);
-  }, [post.id, supabase]);
+  }, [post.id]);
 
   const handleToggleComments = () => {
     const next = !showComments;
@@ -150,6 +149,8 @@ export function PostCard({
   const handleSubmitComment = async () => {
     if (!newComment.trim() || !currentUserId || submittingComment) return;
     setSubmittingComment(true);
+
+    const supabase = createClient();
 
     const { data, error } = await supabase
       .from("comments")
@@ -190,6 +191,8 @@ export function PostCard({
   // ── Delete own comment ────────────────────────────────────────────────────
 
   const handleDeleteComment = async (commentId: string) => {
+    const supabase = createClient();
+
     const { error } = await supabase
       .from("comments")
       .delete()
@@ -210,6 +213,8 @@ export function PostCard({
     if (!currentUserId || deletingPost) return;
     setDeletingPost(true);
     setDeleteError(null);
+
+    const supabase = createClient();
 
     const { error } = await supabase
       .from("posts")
@@ -238,6 +243,8 @@ export function PostCard({
   const handleSubmitReport = async () => {
     if (!reportReason || !currentUserId || submittingReport) return;
     setSubmittingReport(true);
+
+    const supabase = createClient();
 
     const { error } = await supabase.from("reports").insert({
       reported_content_type: "post",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -25,7 +25,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { Tables } from "@/lib/database.types";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { PostCard } from "@/components/post-card";
 import { useHandleMediaUpload } from "@/hooks/use-handle-media-upload";
 import { sendPostLikedNotification } from "@/app/actions/notify";
@@ -62,8 +62,6 @@ export default function CommunityDetailPage() {
   const params = useParams();
   const { user } = useCurrentUser();
 
-  const supabase = useMemo(() => createClient(), []);
-
   const communityId = params.id as string;
 
   const [community, setCommunity] = useState<Community | null>(null);
@@ -88,6 +86,8 @@ export default function CommunityDetailPage() {
 
   const fetchCommunityData = useCallback(async () => {
     if (!communityId) return;
+
+    const supabase = createClient();
 
     // Community + membership check
     const [communityResult, membershipResult] = await Promise.all([
@@ -150,7 +150,7 @@ export default function CommunityDetailPage() {
     } else {
       setPosts(postsData.map((p) => ({ ...p, isLiked: false }) as Post));
     }
-  }, [communityId, user, supabase]);
+  }, [communityId, user]);
 
   // ✅ Loading state lives in the effect, not in the callback
   useEffect(() => {
@@ -172,6 +172,8 @@ export default function CommunityDetailPage() {
 
   const fetchMembers = useCallback(async () => {
     if (!communityId || !user?.id) return;
+
+    const supabase = createClient();
 
     const { data: membersData, error } = await supabase
       .from("community_members")
@@ -222,7 +224,7 @@ export default function CommunityDetailPage() {
           } as Member;
         }),
     );
-  }, [communityId, user, supabase]);
+  }, [communityId, user]);
 
   useEffect(() => {
     if (activeTab !== "members") return;
@@ -246,6 +248,8 @@ export default function CommunityDetailPage() {
     if (!user?.id || !community) return;
     setIsJoining(true);
 
+    const supabase = createClient();
+
     const { error } = await supabase
       .from("community_members")
       .insert({ community_id: community.id, user_id: user.id, role: "member" });
@@ -268,6 +272,8 @@ export default function CommunityDetailPage() {
 
   const handleLeave = async () => {
     if (!user?.id || !community) return;
+
+    const supabase = createClient();
 
     const { error } = await supabase
       .from("community_members")
@@ -332,6 +338,7 @@ export default function CommunityDetailPage() {
       }
       imageUrl = uploaded;
     }
+    const supabase = createClient();
 
     const { data, error } = await supabase
       .from("posts")
@@ -381,6 +388,8 @@ export default function CommunityDetailPage() {
       ),
     );
 
+    const supabase = createClient();
+
     if (post.isLiked) {
       await supabase
         .from("likes")
@@ -411,6 +420,8 @@ export default function CommunityDetailPage() {
         m.id === memberId ? { ...m, connectionStatus: "connecting" } : m,
       ),
     );
+
+    const supabase = createClient();
 
     const { error } = await supabase.from("connections").insert({
       user1_id: user.id,

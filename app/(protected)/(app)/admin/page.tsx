@@ -58,7 +58,7 @@ import { Tables } from "@/lib/database.types";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import Loading from "./loading";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { useCurrentUser } from "@/components/providers/current-user-provider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -104,7 +104,6 @@ function AdminContent() {
   const { user: authUser } = useCurrentUser();
 
   // ✅ Stable supabase reference
-  const supabase = useMemo(() => createClient(), []);
 
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null); // null = loading
   const [stats, setStats] = useState<Stats>({
@@ -134,6 +133,8 @@ function AdminContent() {
   useEffect(() => {
     if (!authUser?.id) return;
 
+    const supabase = createClient();
+
     supabase
       .from("profiles")
       .select("is_admin")
@@ -142,11 +143,13 @@ function AdminContent() {
       .then(({ data }) => {
         setIsAdmin(!!data?.is_admin);
       });
-  }, [authUser?.id, supabase]);
+  }, [authUser?.id]);
 
   // ── Fetch stats (always loaded) ────────────────────────────────────────────
 
   const fetchStats = useCallback(async () => {
+    const supabase = createClient();
+
     const [usersCount, communitiesCount, pendingCount, resolvedCount] =
       await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true }),
@@ -169,7 +172,7 @@ function AdminContent() {
       pendingReports: pendingCount.count ?? 0,
       resolvedReports: resolvedCount.count ?? 0,
     });
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -188,13 +191,15 @@ function AdminContent() {
   // ── Fetch users ────────────────────────────────────────────────────────────
 
   const fetchUsers = useCallback(async () => {
+    const supabase = createClient();
+
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
       .order("created_at", { ascending: false });
 
     if (!error && data) setUsers(data);
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     if (activeTab !== "users" || !isAdmin) return;
@@ -213,6 +218,8 @@ function AdminContent() {
   // ── Fetch reports ──────────────────────────────────────────────────────────
 
   const fetchReports = useCallback(async () => {
+    const supabase = createClient();
+
     const query = supabase
       .from("reports")
       .select(
@@ -226,7 +233,7 @@ function AdminContent() {
 
     const { data, error } = await query;
     if (!error && data) setReports(data as Report[]);
-  }, [supabase, reportFilter]);
+  }, [reportFilter]);
 
   useEffect(() => {
     if (activeTab !== "reports" || !isAdmin) return;
@@ -245,13 +252,15 @@ function AdminContent() {
   // ── Fetch communities ──────────────────────────────────────────────────────
 
   const fetchCommunities = useCallback(async () => {
+    const supabase = createClient();
+
     const { data, error } = await supabase
       .from("communities")
       .select("*, community_members(count)")
       .order("created_at", { ascending: false });
 
     if (!error && data) setCommunities(data);
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     if (activeTab !== "communities" || !isAdmin) return;
@@ -271,6 +280,7 @@ function AdminContent() {
 
   const resolveReport = async (reportId: string) => {
     if (!authUser?.id) return;
+    const supabase = createClient();
 
     const { error } = await supabase
       .from("reports")
@@ -295,6 +305,7 @@ function AdminContent() {
 
   const dismissReport = async (reportId: string) => {
     if (!authUser?.id) return;
+    const supabase = createClient();
 
     const { error } = await supabase
       .from("reports")
@@ -317,6 +328,8 @@ function AdminContent() {
   // ── Delete community ───────────────────────────────────────────────────────
 
   const deleteCommunity = async (communityId: string) => {
+    const supabase = createClient();
+
     const { error } = await supabase
       .from("communities")
       .delete()

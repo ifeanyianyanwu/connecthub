@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect, useCallback, useMemo } from "react";
+import { use, useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -30,7 +30,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Tables } from "@/lib/database.types";
 import { formatDistanceToNow } from "date-fns";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { useCurrentUser } from "@/components/providers/current-user-provider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,9 +58,6 @@ export default function UserProfilePage({
   const { id } = use(params);
   const { user: authUser } = useCurrentUser();
 
-  // ✅ Stable supabase reference
-  const supabase = useMemo(() => createClient(), []);
-
   const [profile, setProfile] = useState<ProfileWithHobbies | null>(null);
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("none");
@@ -75,6 +72,8 @@ export default function UserProfilePage({
 
   const fetchProfile = useCallback(async () => {
     if (!id) return;
+
+    const supabase = createClient();
 
     // Run queries in parallel where possible
     const [profileResult, hobbiesResult] = await Promise.all([
@@ -135,7 +134,7 @@ export default function UserProfilePage({
         }
       }
     }
-  }, [id, authUser, isOwnProfile, supabase]);
+  }, [id, authUser, isOwnProfile]);
 
   useEffect(() => {
     let cancelled = false;
@@ -157,6 +156,7 @@ export default function UserProfilePage({
   const handleConnect = async () => {
     if (!authUser?.id) return;
     setActionLoading(true);
+    const supabase = createClient();
 
     const { data, error } = await supabase
       .from("connections")
@@ -177,6 +177,8 @@ export default function UserProfilePage({
     if (!connectionId) return;
     setActionLoading(true);
 
+    const supabase = createClient();
+
     const { error } = await supabase
       .from("connections")
       .update({ status: "accepted" })
@@ -194,6 +196,8 @@ export default function UserProfilePage({
   const handleDisconnect = async () => {
     if (!connectionId) return;
     setActionLoading(true);
+
+    const supabase = createClient();
 
     const { error } = await supabase
       .from("connections")

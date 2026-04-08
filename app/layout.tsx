@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
+import { CurrentUserProvider } from "@/components/providers/current-user-provider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -63,8 +64,10 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <PwaInstallPrompt />
-          {children}
+          <CurrentUserProvider>
+            <PwaInstallPrompt />
+            {children}
+          </CurrentUserProvider>
         </ThemeProvider>
         <Analytics />
       </body>

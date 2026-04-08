@@ -36,13 +36,13 @@ import {
   Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { createClient } from "@/lib/supabase/client";
-import { useCurrentUserHobbies } from "@/hooks/use-current-user-hobbies";
 import { useHandleAvatarUpload } from "@/hooks/use-handle-avatar-upload";
 import { Hobby } from "@/lib/types";
 import { useTheme } from "next-themes";
 import { PushNotificationToggle } from "@/components/push-notification-toggle";
+import { useCurrentUserHobbies } from "@/hooks/use-current-user-hobbies";
 
 type ProfileData = {
   name: string;

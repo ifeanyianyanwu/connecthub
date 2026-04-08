@@ -25,7 +25,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import Loading from "./loading";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { Profile } from "@/lib/types";
 import { sendConnectionRequestNotification } from "@/app/actions/notify";
 

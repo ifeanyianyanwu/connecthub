@@ -33,7 +33,7 @@ import {
 
 import { NotificationPanel } from "@/components/notifications/notification-panel";
 import { CurrentUserAvatar } from "../current-user-avatar";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { createClient } from "@/lib/supabase/client";
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 

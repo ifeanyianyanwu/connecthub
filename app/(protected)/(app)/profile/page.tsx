@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { useCurrentUserHobbies } from "@/hooks/use-current-user-hobbies";
 
 type Post = {

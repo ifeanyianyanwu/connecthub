@@ -6,7 +6,6 @@ import React, {
   useRef,
   useCallback,
   Suspense,
-  useMemo,
 } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -29,7 +28,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { formatDistanceToNow, format, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { Message } from "@/lib/types";
 
 type Conversation = {
@@ -47,7 +46,6 @@ function MessagesContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user } = useCurrentUser();
-  const supabase = useMemo(() => createClient(), []);
 
   const partnerIdFromUrl = searchParams.get("conversation");
 
@@ -69,13 +67,16 @@ function MessagesContent() {
 
   const fetchConversations = useCallback(async () => {
     if (!user?.id) return;
+
+    const supabase = createClient();
+
     const { data, error } = await supabase.rpc("get_user_conversations", {
       user_id: user.id,
     });
     if (!error && data) {
       setConversations(data as Conversation[]);
     }
-  }, [user?.id, supabase]);
+  }, [user?.id]);
 
   useEffect(() => {
     const load = async () => {
@@ -105,6 +106,9 @@ function MessagesContent() {
     const fetchMessagesAsync = async () => {
       if (!user?.id || !activePartnerId) return;
       setLoadingMessages(true);
+
+      const supabase = createClient();
+
       const { data, error } = await supabase
         .from("messages")
         .select("*")
@@ -120,12 +124,15 @@ function MessagesContent() {
       setLoadingMessages(false);
     };
     fetchMessagesAsync();
-  }, [user?.id, activePartnerId, supabase]);
+  }, [user?.id, activePartnerId]);
 
   // ── Mark incoming messages as read ──────────────────────────────────────
 
   useEffect(() => {
     if (!user?.id || !activePartnerId) return;
+
+    const supabase = createClient();
+
     supabase
       .from("messages")
       .update({ read_at: new Date().toISOString() })
@@ -144,6 +151,8 @@ function MessagesContent() {
 
   useEffect(() => {
     if (!user?.id) return;
+
+    const supabase = createClient();
 
     const channel = supabase
       .channel(`messages:user:${user.id}`)
@@ -180,7 +189,7 @@ function MessagesContent() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, activePartnerId, supabase, fetchConversations]);
+  }, [user?.id, activePartnerId, fetchConversations]);
 
   // ── Auto-scroll to latest message ───────────────────────────────────────
 
@@ -196,6 +205,8 @@ function MessagesContent() {
     setSending(true);
     const content = newMessage.trim();
     setNewMessage("");
+
+    const supabase = createClient();
 
     const { data, error } = await supabase
       .from("messages")

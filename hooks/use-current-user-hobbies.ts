@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useCurrentUser } from "./use-current-user";
 import { PostgrestError } from "@supabase/supabase-js";
+import { useCurrentUser } from "@/components/providers/current-user-provider";
 
 export function useCurrentUserHobbies() {
   const [hobbies, setHobbies] = useState<{ name: string; id: string }[]>([]);
@@ -31,7 +31,8 @@ export function useCurrentUserHobbies() {
     };
 
     fetchHobbies();
-  }, [user]);
+    // eslint-disable-next-line
+  }, [user?.id]);
 
   return { hobbies, loading, error };
 }

@@ -33,7 +33,7 @@ import { Suspense } from "react";
 import Loading from "./loading";
 import { createClient } from "@/lib/supabase/client";
 import { Tables } from "@/lib/database.types";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { useCurrentUser } from "@/components/providers/current-user-provider";
 
 const categories = [
   "All",
@@ -54,8 +54,6 @@ type Community = Tables<"communities"> & {
 export default function CommunitiesPage() {
   const { user } = useCurrentUser();
 
-  const supabase = useMemo(() => createClient(), []);
-
   const [allCommunities, setAllCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -73,6 +71,7 @@ export default function CommunitiesPage() {
 
   const fetchCommunities = useCallback(async () => {
     if (!user?.id) return;
+    const supabase = createClient();
 
     // Run both queries in parallel
     const [communitiesResult, membersResult] = await Promise.all([
@@ -99,7 +98,7 @@ export default function CommunitiesPage() {
         isMember: memberIds.has(c.id),
       })),
     );
-  }, [user, supabase]);
+  }, [user]);
 
   // ✅ No synchronous setState in the effect body — loading state is managed
   //    by the effect wrapper, fetch logic stays reusable via useCallback
@@ -127,6 +126,8 @@ export default function CommunitiesPage() {
     async (communityId: string) => {
       if (!user?.id) return;
 
+      const supabase = createClient();
+
       const { error } = await supabase
         .from("community_members")
         .insert({ community_id: communityId, user_id: user.id });
@@ -138,19 +139,17 @@ export default function CommunitiesPage() {
 
       // Optimistic update
       setAllCommunities((prev) =>
-        prev.map((c) =>
-          c.id === communityId
-            ? { ...c, isMember: true, }
-            : c,
-        ),
+        prev.map((c) => (c.id === communityId ? { ...c, isMember: true } : c)),
       );
     },
-    [user, supabase],
+    [user],
   );
 
   const leaveCommunity = useCallback(
     async (communityId: string) => {
       if (!user?.id) return;
+
+      const supabase = createClient();
 
       const { error } = await supabase
         .from("community_members")
@@ -174,7 +173,7 @@ export default function CommunitiesPage() {
         ),
       );
     },
-    [user, supabase],
+    [user],
   );
 
   // ── Create community ─────────────────────────────────────────────────────
@@ -182,6 +181,7 @@ export default function CommunitiesPage() {
   const handleCreateCommunity = async () => {
     if (!newCommunity.name.trim() || !user?.id) return;
     setIsCreating(true);
+    const supabase = createClient();
 
     const { data, error } = await supabase
       .from("communities")

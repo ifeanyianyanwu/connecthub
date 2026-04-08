@@ -19,7 +19,7 @@ import { ArrowLeft, ArrowRight, Camera, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { Hobby } from "@/lib/types";
 import { useHandleAvatarUpload } from "@/hooks/use-handle-avatar-upload";
 

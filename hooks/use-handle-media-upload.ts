@@ -1,6 +1,6 @@
+import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { createClient } from "@/lib/supabase/client";
 import { useState } from "react";
-import { useCurrentUser } from "./use-current-user";
 
 export const useHandleMediaUpload = () => {
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
