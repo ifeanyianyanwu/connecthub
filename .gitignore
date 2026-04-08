@@ -43,8 +43,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Serwist / PWA build outputs — generated at build time, not source files
+# serive worker
 /public/sw.js
-/public/sw.js.map
 /public/workbox-*.js
-/public/workbox-*.js.map
