@@ -46,7 +46,7 @@ const serwist = new Serwist({
     },
     // ── Your app's own API routes — network only ─────────────────────────
     {
-      matcher: ({ url, request }) =>
+      matcher: ({ url }) =>
         url.origin === self.location.origin && url.pathname.startsWith("/api/"),
       handler: new NetworkOnly(),
     },

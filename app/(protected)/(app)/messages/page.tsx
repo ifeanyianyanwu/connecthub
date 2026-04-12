@@ -67,9 +67,7 @@ function MessagesContent() {
 
   const fetchConversations = useCallback(async () => {
     if (!user?.id) return;
-
     const supabase = createClient();
-
     const { data, error } = await supabase.rpc("get_user_conversations", {
       user_id: user.id,
     });
@@ -89,15 +87,12 @@ function MessagesContent() {
   // ── Keep activePartner in sync with conversation list ────────────────────
 
   useEffect(() => {
-    const updateActivePartner = () => {
-      if (!activePartnerId) {
-        setActivePartner(null);
-        return;
-      }
-      const found = conversations.find((c) => c.partner_id === activePartnerId);
-      if (found) setActivePartner(found);
-    };
-    updateActivePartner();
+    if (!activePartnerId) {
+      setActivePartner(null);
+      return;
+    }
+    const found = conversations.find((c) => c.partner_id === activePartnerId);
+    if (found) setActivePartner(found);
   }, [activePartnerId, conversations]);
 
   // ── Fetch messages between current user and active partner ───────────────
@@ -106,9 +101,7 @@ function MessagesContent() {
     const fetchMessagesAsync = async () => {
       if (!user?.id || !activePartnerId) return;
       setLoadingMessages(true);
-
       const supabase = createClient();
-
       const { data, error } = await supabase
         .from("messages")
         .select("*")
@@ -117,10 +110,7 @@ function MessagesContent() {
             `and(sender_id.eq.${activePartnerId},receiver_id.eq.${user.id})`,
         )
         .order("created_at", { ascending: true });
-
-      if (!error && data) {
-        setMessages(data);
-      }
+      if (!error && data) setMessages(data);
       setLoadingMessages(false);
     };
     fetchMessagesAsync();
@@ -130,9 +120,7 @@ function MessagesContent() {
 
   useEffect(() => {
     if (!user?.id || !activePartnerId) return;
-
     const supabase = createClient();
-
     supabase
       .from("messages")
       .update({ read_at: new Date().toISOString() })
@@ -140,9 +128,7 @@ function MessagesContent() {
       .eq("receiver_id", user.id)
       .is("read_at", null)
       .then(async () => {
-        // setLoadingConversations(true);
         await fetchConversations();
-        // setLoadingConversations(false);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePartnerId, user?.id]);
@@ -151,9 +137,7 @@ function MessagesContent() {
 
   useEffect(() => {
     if (!user?.id) return;
-
     const supabase = createClient();
-
     const channel = supabase
       .channel(`messages:user:${user.id}`)
       .on(
@@ -167,25 +151,20 @@ function MessagesContent() {
         (payload) => {
           const incoming = payload.new as Message;
           if (incoming.sender_id === activePartnerId) {
-            // Add to current view and mark read
             setMessages((prev) => [...prev, incoming]);
             supabase
               .from("messages")
               .update({ read_at: new Date().toISOString() })
               .eq("id", incoming.id)
               .then(async () => {
-                // setLoadingConversations(true);
                 await fetchConversations();
-                // setLoadingConversations(false);
               });
           } else {
-            // Different conversation — just refresh badges
             fetchConversations();
           }
         },
       )
       .subscribe();
-
     return () => {
       supabase.removeChannel(channel);
     };
@@ -201,13 +180,10 @@ function MessagesContent() {
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !activePartnerId || !user?.id || sending) return;
-
     setSending(true);
     const content = newMessage.trim();
     setNewMessage("");
-
     const supabase = createClient();
-
     const { data, error } = await supabase
       .from("messages")
       .insert({
@@ -218,15 +194,12 @@ function MessagesContent() {
       })
       .select()
       .single();
-
     if (!error && data) {
       setMessages((prev) => [...prev, data]);
       fetchConversations();
     } else {
-      // Restore if send failed
       setNewMessage(content);
     }
-
     setSending(false);
   };
 
@@ -281,17 +254,18 @@ function MessagesContent() {
   // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-[calc(100vh-4rem)]">
+    <div className="flex h-[calc(100dvh-4rem)] overflow-hidden">
       {/* ── Conversation Sidebar ── */}
       <div
         className={cn(
-          "w-full border-r border-border bg-card flex flex-col lg:w-80 shrink-0",
-          !showConversationList && "hidden lg:flex",
+          "flex flex-col border-r border-border bg-card min-h-0 w-full shrink-0",
+          "md:w-72 lg:w-80",
+          !showConversationList && "hidden md:flex",
         )}
       >
         {/* Header */}
         <div className="border-b border-border p-4 shrink-0">
-          <h1 className="mb-4 text-xl font-bold">Messages</h1>
+          <h1 className="mb-4 text-xl font-bold text-foreground">Messages</h1>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -304,97 +278,100 @@ function MessagesContent() {
         </div>
 
         {/* List */}
-        <ScrollArea className="flex-1 h-[calc(100vh-16rem)] lg:w-80">
-          {loadingConversations ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : filteredConversations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-              <MessageCircle className="mb-4 h-12 w-12 text -muted-foreground" />
-              <p className="text-sm font-medium">No conversations yet</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Connect with people to start chatting
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* <div className="divide-y divide-border"> */}
-              {filteredConversations.map((conv) => {
-                const isActive = conv.partner_id === activePartnerId;
-                return (
-                  <button
-                    key={conv.partner_id}
-                    onClick={() => handleSelectConversation(conv)}
-                    className={cn(
-                      "flex items-start gap-3 p-4 text-left transition-colors hover:bg-muted w-full",
-                      isActive && "bg-muted",
-                    )}
-                  >
-                    <Avatar className="h-12 w-12 shrink-0">
-                      <AvatarImage
-                        src={conv.partner_profile_picture || "/placeholder.svg"}
-                        alt={getDisplayName(conv) ?? ""}
-                      />
-                      <AvatarFallback>{getInitial(conv)}</AvatarFallback>
-                    </Avatar>
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <ScrollArea className="h-full">
+            {loadingConversations ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : filteredConversations.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                <MessageCircle className="mb-4 h-12 w-12 text-muted-foreground" />
+                <p className="text-sm font-medium">No conversations yet</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Connect with people to start chatting
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {filteredConversations.map((conv) => {
+                  const isActive = conv.partner_id === activePartnerId;
+                  return (
+                    <button
+                      key={conv.partner_id}
+                      onClick={() => handleSelectConversation(conv)}
+                      className={cn(
+                        "flex w-full items-start gap-3 p-4 text-left transition-colors hover:bg-muted",
+                        isActive && "bg-muted",
+                      )}
+                    >
+                      <Avatar className="h-12 w-12 shrink-0">
+                        <AvatarImage
+                          src={
+                            conv.partner_profile_picture || "/placeholder.svg"
+                          }
+                          alt={getDisplayName(conv) ?? ""}
+                        />
+                        <AvatarFallback>{getInitial(conv)}</AvatarFallback>
+                      </Avatar>
 
-                    <div className="flex-1 overflow-hidden">
-                      <div className="flex items-center justify-between gap-2">
-                        <h3 className="font-medium truncate">
-                          {getDisplayName(conv)}
-                        </h3>
-                        {conv.last_message_at && (
-                          <span className="shrink-0 text-xs text-muted-foreground">
-                            {formatDistanceToNow(
-                              new Date(conv.last_message_at),
-                              { addSuffix: false },
-                            )}
-                          </span>
+                      <div className="flex-1 overflow-hidden">
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="font-medium truncate">
+                            {getDisplayName(conv)}
+                          </h3>
+                          {conv.last_message_at && (
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {formatDistanceToNow(
+                                new Date(conv.last_message_at),
+                                { addSuffix: false },
+                              )}
+                            </span>
+                          )}
+                        </div>
+                        {conv.last_message && (
+                          <p className="mt-0.5 truncate text-sm text-muted-foreground">
+                            {conv.last_message_is_mine && "You: "}
+                            {conv.last_message}
+                          </p>
                         )}
                       </div>
-                      {conv.last_message && (
-                        <p className="mt-0.5 truncate text-sm text-muted-foreground">
-                          {conv.last_message_is_mine && "You: "}
-                          {conv.last_message}
-                        </p>
-                      )}
-                    </div>
 
-                    {conv.unread_count > 0 && (
-                      <Badge className="shrink-0 h-5 min-w-5 px-1.5 text-xs">
-                        {conv.unread_count}
-                      </Badge>
-                    )}
-                  </button>
-                );
-              })}
-            </>
-          )}
-        </ScrollArea>
+                      {conv.unread_count > 0 && (
+                        <Badge className="shrink-0 h-5 min-w-5 px-1.5 text-xs">
+                          {conv.unread_count}
+                        </Badge>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </ScrollArea>
+        </div>
       </div>
 
       {/* ── Chat Area ── */}
       <div
         className={cn(
-          "flex flex-1 flex-col bg-background min-w-0",
-          showConversationList && "hidden lg:flex",
+          "flex flex-1 flex-col bg-background min-w-0 min-h-0",
+          showConversationList && "hidden md:flex",
         )}
       >
         {activePartnerId && activePartner ? (
           <>
             {/* Chat Header */}
-            <div className="flex items-center justify-between border-b border-border p-4 shrink-0">
-              <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center justify-between border-b border-border px-3 py-3 sm:px-4 shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="lg:hidden shrink-0"
+                  className="md:hidden shrink-0"
                   onClick={handleBackToList}
                 >
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
-                <Avatar className="h-10 w-10 shrink-0">
+                <Avatar className="h-9 w-9 sm:h-10 sm:w-10 shrink-0">
                   <AvatarImage
                     src={
                       activePartner.partner_profile_picture ||
@@ -405,7 +382,7 @@ function MessagesContent() {
                   <AvatarFallback>{getInitial(activePartner)}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <h2 className="font-semibold truncate">
+                  <h2 className="font-semibold truncate text-sm sm:text-base">
                     {getDisplayName(activePartner)}
                   </h2>
                   {activePartner.partner_username && (
@@ -417,10 +394,18 @@ function MessagesContent() {
               </div>
 
               <div className="flex items-center gap-1 shrink-0">
-                <Button variant="ghost" size="icon">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hidden sm:inline-flex"
+                >
                   <Phone className="h-5 w-5" />
                 </Button>
-                <Button variant="ghost" size="icon">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hidden sm:inline-flex"
+                >
                   <Video className="h-5 w-5" />
                 </Button>
                 <Button variant="ghost" size="icon">
@@ -430,92 +415,101 @@ function MessagesContent() {
             </div>
 
             {/* Messages */}
-            <ScrollArea className="flex-1 px-4 h-[calc(100vh-16rem)]">
-              {loadingMessages ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <MessageCircle className="mb-3 h-10 w-10 text-muted-foreground" />
-                  <p className="text-sm font-medium">No messages yet</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Say hello to {getDisplayName(activePartner)}!
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {messages.map((message, index) => {
-                    const isOwn = message.sender_id === user?.id;
-                    const prev = messages[index - 1];
-                    const showAvatar =
-                      !isOwn && (!prev || prev.sender_id !== message.sender_id);
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <ScrollArea className="h-full px-3 sm:px-4">
+                <div className="py-4">
+                  {loadingMessages ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : messages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <MessageCircle className="mb-3 h-10 w-10 text-muted-foreground" />
+                      <p className="text-sm font-medium">No messages yet</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Say hello to {getDisplayName(activePartner)}!
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {messages.map((message, index) => {
+                        const isOwn = message.sender_id === user?.id;
+                        const prev = messages[index - 1];
+                        const showAvatar =
+                          !isOwn &&
+                          (!prev || prev.sender_id !== message.sender_id);
 
-                    return (
-                      <div
-                        key={message.id}
-                        className={cn(
-                          "flex items-end gap-2",
-                          isOwn && "flex-row-reverse",
-                        )}
-                      >
-                        {!isOwn && (
-                          <Avatar
+                        return (
+                          <div
+                            key={message.id}
                             className={cn(
-                              "h-8 w-8 shrink-0",
-                              !showAvatar && "invisible",
+                              "flex items-end gap-2",
+                              isOwn && "flex-row-reverse",
                             )}
                           >
-                            <AvatarImage
-                              src={
-                                activePartner.partner_profile_picture ||
-                                "/placeholder.svg"
-                              }
-                              alt={getDisplayName(activePartner) ?? ""}
-                            />
-                            <AvatarFallback>
-                              {getInitial(activePartner)}
-                            </AvatarFallback>
-                          </Avatar>
-                        )}
+                            {!isOwn && (
+                              <Avatar
+                                className={cn(
+                                  "h-8 w-8 shrink-0",
+                                  !showAvatar && "invisible",
+                                )}
+                              >
+                                <AvatarImage
+                                  src={
+                                    activePartner.partner_profile_picture ||
+                                    "/placeholder.svg"
+                                  }
+                                  alt={getDisplayName(activePartner) ?? ""}
+                                />
+                                <AvatarFallback>
+                                  {getInitial(activePartner)}
+                                </AvatarFallback>
+                              </Avatar>
+                            )}
 
-                        <div
-                          className={cn(
-                            "max-w-[70%] rounded-2xl px-4 py-2",
-                            isOwn
-                              ? "rounded-br-sm bg-foreground text-background"
-                              : "rounded-bl-sm bg-muted text-foreground",
-                          )}
-                        >
-                          <p className="text-sm whitespace-pre-wrap wrap-break-word">
-                            {message.content}
-                          </p>
-                          <p
-                            className={cn(
-                              "mt-1 text-xs",
-                              isOwn
-                                ? "text-background/60"
-                                : "text-muted-foreground",
-                            )}
-                          >
-                            {formatMessageTime(message.created_at)}
-                            {isOwn && message.read_at && (
-                              <span className="ml-1">· Read</span>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <div ref={messagesEndRef} />
+                            <div
+                              className={cn(
+                                "max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-2",
+                                isOwn
+                                  ? "rounded-br-sm bg-foreground text-background"
+                                  : "rounded-bl-sm bg-muted text-foreground",
+                              )}
+                            >
+                              <p className="text-sm whitespace-pre-wrap wrap-break-word">
+                                {message.content}
+                              </p>
+                              <p
+                                className={cn(
+                                  "mt-1 text-xs",
+                                  isOwn
+                                    ? "text-background/60"
+                                    : "text-muted-foreground",
+                                )}
+                              >
+                                {formatMessageTime(message.created_at)}
+                                {isOwn && message.read_at && (
+                                  <span className="ml-1">· Read</span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  )}
                 </div>
-              )}
-            </ScrollArea>
+              </ScrollArea>
+            </div>
 
             {/* Message Input */}
-            <div className="border-t border-border p-4 shrink-0">
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" className="shrink-0">
+            <div className="border-t border-border p-3 sm:p-4 shrink-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 hidden sm:inline-flex"
+                >
                   <Paperclip className="h-5 w-5" />
                 </Button>
                 <Input
@@ -523,10 +517,14 @@ function MessagesContent() {
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  className="flex-1"
+                  className="flex-1 min-w-0"
                   disabled={sending}
                 />
-                <Button variant="ghost" size="icon" className="shrink-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 hidden sm:inline-flex"
+                >
                   <Smile className="h-5 w-5" />
                 </Button>
                 <Button
@@ -566,7 +564,7 @@ export default function MessagesPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
+        <div className="flex h-[calc(100dvh-4rem)] items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       }
