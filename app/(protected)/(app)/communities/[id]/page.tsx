@@ -405,7 +405,7 @@ export default function CommunityDetailPage() {
         user.id,
         user.profile!.display_name!,
         communityId,
-      ).catch(console.error);
+      ).catch((error) => console.log(error));
     }
   };
 

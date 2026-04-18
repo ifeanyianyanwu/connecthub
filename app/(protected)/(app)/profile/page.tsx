@@ -6,14 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  MapPin,
-  Calendar,
-  CheckCircle,
-  Grid,
-  BookOpen,
-  Loader2,
-} from "lucide-react";
+import { MapPin, Calendar, Grid, BookOpen, Loader2 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrentUser } from "@/components/providers/current-user-provider";
@@ -93,7 +86,6 @@ export default function ProfilePage() {
       "Anonymous",
     username: authUser?.profile?.username || "anonymous",
     avatar: authUser?.profile?.profile_picture,
-    isVerified: authUser?.profile?.is_admin,
     bio: authUser?.profile?.bio,
     location: authUser?.profile?.location,
     joinedAt: authUser?.profile?.created_at || new Date().toISOString(),
@@ -124,9 +116,6 @@ export default function ProfilePage() {
             <div className="mt-4 flex-1 text-center sm:mt-0 sm:pb-4 sm:text-left">
               <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-center">
                 <h1 className="text-2xl font-bold">{user.name}</h1>
-                {user.isVerified && (
-                  <CheckCircle className="h-5 w-5 fill-foreground text-background" />
-                )}
               </div>
               <p className="text-muted-foreground">@{user.username}</p>
             </div>

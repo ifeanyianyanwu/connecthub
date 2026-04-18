@@ -9,23 +9,22 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
-  const _next = searchParams.get("next");
-
-  // const next = _next?.startsWith("/") ? _next : "/";
+  const _next = searchParams.get("next") ?? "/";
 
   let next = "/";
 
-  if (_next) {
-    try {
+  try {
+    if (_next.startsWith("http")) {
       const url = new URL(_next);
-      if (url.origin === process.env.NEXT_PUBLIC_SITE_URL) {
+      if (url.origin === origin) {
         next = url.pathname + url.search;
       }
-    } catch {
-      if (_next.startsWith("/")) {
-        next = _next;
-      }
+    } else if (_next.startsWith("/")) {
+      next = _next;
     }
+  } catch (e) {
+    console.error("[confirm route] URL parsing error:", e);
+    next = "/";
   }
 
   if (token_hash && type) {
@@ -41,7 +40,7 @@ export async function GET(request: NextRequest) {
     } else {
       console.log(error);
       // redirect the user to an error page with some instructions
-      redirect(`/auth/error?error=${error?.message}`);
+      redirect(`/auth/error?error=${encodeURIComponent(error.message)}`);
     }
   }
 

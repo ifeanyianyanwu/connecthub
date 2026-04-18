@@ -66,7 +66,7 @@ export async function notifyUser({
     type,
     title,
     message,
-    is_read: false,
+    read: false,
   });
 
   if (error) {

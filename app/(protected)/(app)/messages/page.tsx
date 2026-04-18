@@ -17,9 +17,6 @@ import {
   Search,
   Send,
   ArrowLeft,
-  MoreVertical,
-  Phone,
-  Video,
   Paperclip,
   Smile,
   MessageCircle,
@@ -391,26 +388,6 @@ function MessagesContent() {
                     </p>
                   )}
                 </div>
-              </div>
-
-              <div className="flex items-center gap-1 shrink-0">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="hidden sm:inline-flex"
-                >
-                  <Phone className="h-5 w-5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="hidden sm:inline-flex"
-                >
-                  <Video className="h-5 w-5" />
-                </Button>
-                <Button variant="ghost" size="icon">
-                  <MoreVertical className="h-5 w-5" />
-                </Button>
               </div>
             </div>
 

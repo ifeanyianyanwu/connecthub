@@ -556,15 +556,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      create_notification: {
-        Args: {
-          p_message: string
-          p_title: string
-          p_type: string
-          p_user_id: string
-        }
-        Returns: undefined
-      }
       get_user_conversations: {
         Args: { user_id: string }
         Returns: {
