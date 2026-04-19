@@ -28,7 +28,6 @@ import { Tables } from "@/lib/database.types";
 import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { PostCard } from "@/components/post-card";
 import { useHandleMediaUpload } from "@/hooks/use-handle-media-upload";
-import { sendPostLikedNotification } from "@/app/actions/notify";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,7 +88,6 @@ export default function CommunityDetailPage() {
 
     const supabase = createClient();
 
-    // Community + membership check
     const [communityResult, membershipResult] = await Promise.all([
       supabase
         .from("communities")
@@ -118,7 +116,6 @@ export default function CommunityDetailPage() {
       admins: [communityResult.data.created_by],
     });
 
-    // Posts
     const { data: postsData, error: postsError } = await supabase
       .from("posts")
       .select(
@@ -132,7 +129,6 @@ export default function CommunityDetailPage() {
       return;
     }
 
-    // Fetch which posts the current user has liked
     if (user?.id && postsData.length > 0) {
       const { data: userLikes } = await supabase
         .from("likes")
@@ -152,7 +148,6 @@ export default function CommunityDetailPage() {
     }
   }, [communityId, user]);
 
-  // ✅ Loading state lives in the effect, not in the callback
   useEffect(() => {
     let cancelled = false;
 
@@ -168,7 +163,7 @@ export default function CommunityDetailPage() {
     };
   }, [fetchCommunityData]);
 
-  // ── Fetch members (lazy — only when tab is opened) ───────────────────────
+  // ── Fetch members (lazy) ─────────────────────────────────────────────────
 
   const fetchMembers = useCallback(async () => {
     if (!communityId || !user?.id) return;
@@ -188,7 +183,6 @@ export default function CommunityDetailPage() {
       return;
     }
 
-    // Fetch existing connections between current user and all members
     const memberIds = membersData
       .map((m) => (m.profiles as unknown as Profile)?.id)
       .filter((id) => id && id !== user.id);
@@ -212,7 +206,7 @@ export default function CommunityDetailPage() {
 
     setMembers(
       membersData
-        .filter((m) => m.profiles) // guard against deleted profiles
+        .filter((m) => m.profiles)
         .map((m) => {
           const profile = m.profiles as unknown as Profile;
           const status = connectionMap.get(profile.id) ?? "none";
@@ -220,7 +214,7 @@ export default function CommunityDetailPage() {
             ...profile,
             role: m.role,
             joined_at: m.joined_at,
-            connectionStatus: profile.id === user.id ? "accepted" : status, // treat self as already "connected"
+            connectionStatus: profile.id === user.id ? "accepted" : status,
           } as Member;
         }),
     );
@@ -303,15 +297,12 @@ export default function CommunityDetailPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate before previewing — hook will also validate on upload,
-    // but we want to show errors immediately without waiting for submission
     if (!file.type.startsWith("image/")) return;
     if (file.size > 1024 * 1024) return;
 
     setSelectedImage(file);
     setImagePreview(URL.createObjectURL(file));
 
-    // Reset input so the same file can be reselected after removal
     e.target.value = "";
   };
 
@@ -327,12 +318,10 @@ export default function CommunityDetailPage() {
     if (!newPostContent.trim() || !user?.id || !community) return;
     setIsPosting(true);
 
-    // Upload image first if one is selected
     let imageUrl: string | null = null;
     if (selectedImage) {
       const uploaded = await handleMediaUpload(selectedImage);
       if (!uploaded) {
-        // Upload failed — mediaError is already set by the hook
         setIsPosting(false);
         return;
       }
@@ -363,58 +352,11 @@ export default function CommunityDetailPage() {
     setIsPosting(false);
   };
 
-  // ── Toggle like ──────────────────────────────────────────────────────────
-
-  const toggleLike = async (post: Post) => {
-    // TODO: Add error handling and revert optimistic update on failure. This is a bit tricky because we don't want to block the UI while waiting for the request, but we also don't want to leave the UI in an inconsistent state if the request fails. One approach could be to keep track of pending like/unlike actions in a separate state variable, and only revert if the specific action fails.
-    if (!user?.id) return;
-
-    // Optimistic update
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.id === post.id
-          ? {
-              ...p,
-              isLiked: !p.isLiked,
-              likes: [
-                {
-                  count: p.isLiked
-                    ? p.likes[0].count - 1
-                    : p.likes[0].count + 1,
-                },
-              ],
-            }
-          : p,
-      ),
-    );
-
-    const supabase = createClient();
-
-    if (post.isLiked) {
-      await supabase
-        .from("likes")
-        .delete()
-        .match({ post_id: post.id, user_id: user.id });
-    } else {
-      await supabase
-        .from("likes")
-        .insert({ post_id: post.id, user_id: user.id });
-
-      sendPostLikedNotification(
-        post.user_id,
-        user.id,
-        user.profile!.display_name!,
-        communityId,
-      ).catch((error) => console.log(error));
-    }
-  };
-
   // ── Send connection request ──────────────────────────────────────────────
 
   const handleConnect = async (memberId: string) => {
     if (!user?.id) return;
 
-    // Optimistic update
     setMembers((prev) =>
       prev.map((m) =>
         m.id === memberId ? { ...m, connectionStatus: "connecting" } : m,
@@ -431,7 +373,6 @@ export default function CommunityDetailPage() {
 
     if (error) {
       console.error("Error sending connection request:", error);
-      // Revert on failure
       setMembers((prev) =>
         prev.map((m) =>
           m.id === memberId ? { ...m, connectionStatus: "none" } : m,
@@ -520,7 +461,6 @@ export default function CommunityDetailPage() {
               )}
             </div>
 
-            {/* Join / Leave */}
             <div className="flex gap-2 sm:pb-2">
               {user &&
                 (community.isMember ? (
@@ -599,7 +539,6 @@ export default function CommunityDetailPage() {
                         className="resize-none"
                       />
 
-                      {/* Image preview */}
                       {imagePreview && (
                         <div className="relative w-full overflow-hidden rounded-lg border border-border">
                           <div className="relative aspect-video">
@@ -622,13 +561,11 @@ export default function CommunityDetailPage() {
                         </div>
                       )}
 
-                      {/* Upload error from hook */}
                       {mediaError && (
                         <p className="text-xs text-destructive">{mediaError}</p>
                       )}
 
                       <div className="flex items-center justify-between">
-                        {/* Hidden file input triggered by the button */}
                         <label htmlFor="post-image-upload">
                           <Button
                             type="button"
@@ -699,7 +636,6 @@ export default function CommunityDetailPage() {
                   post={post}
                   currentUserId={user?.id}
                   currentUserProfile={user?.profile}
-                  onToggleLike={() => toggleLike(post)}
                   onDelete={(postId: string) =>
                     setPosts((prev) => prev.filter((p) => p.id !== postId))
                   }

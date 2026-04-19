@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback,  } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { formatDistanceToNow } from "date-fns";
@@ -45,7 +45,10 @@ import {
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Tables } from "@/lib/database.types";
-import { sendNewCommentNotification } from "@/app/actions/notify";
+import {
+  sendNewCommentNotification,
+  sendPostLikedNotification,
+} from "@/app/actions/notify";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -83,18 +86,21 @@ export function PostCard({
   post,
   currentUserId,
   currentUserProfile,
-  onToggleLike,
   onDelete,
 }: {
   post: Post;
   currentUserId?: string;
   currentUserProfile?: Profile | null;
-  onToggleLike: () => void;
-  onDelete?: (postId: string) => void; // called after successful deletion so parent can remove from list
+  /** Called after the post is successfully deleted so the parent can remove it from the list. */
+  onDelete?: (postId: string) => void;
 }) {
   const isOwnPost = post.user_id === currentUserId;
 
-  // ── Comment state ────────────────────────────────────────────────────────
+  // ── Local like state (self-contained, initialised from prop) ─────────────
+  const [likeCount, setLikeCount] = useState(() => post.likes[0]?.count ?? 0);
+  const [isLiked, setIsLiked] = useState(() => post.isLiked);
+
+  // ── Comment state ─────────────────────────────────────────────────────────
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
@@ -105,17 +111,161 @@ export function PostCard({
     post.comments[0]?.count ?? 0,
   );
 
-  // ── Delete state ─────────────────────────────────────────────────────────
+  // ── Delete state ──────────────────────────────────────────────────────────
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingPost, setDeletingPost] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // ── Report state ─────────────────────────────────────────────────────────
+  // ── Report state ──────────────────────────────────────────────────────────
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportDescription, setReportDescription] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
   const [reportSubmitted, setReportSubmitted] = useState(false);
+
+  // Refs so the realtime handler can always see the latest values without
+  // needing to be recreated when state changes.
+  const commentsFetchedRef = useRef(false);
+  const commentsRef = useRef<Comment[]>([]);
+
+  useEffect(() => {
+    commentsFetchedRef.current = commentsFetched;
+  }, [commentsFetched]);
+
+  useEffect(() => {
+    commentsRef.current = comments;
+  }, [comments]);
+
+  // ── Real-time subscriptions for likes and comments ────────────────────────
+  useEffect(() => {
+    const supabase = createClient();
+
+    const channel = supabase
+      .channel(`post-rt-${post.id}`)
+      // ── Likes: INSERT ────────────────────────────────────────────────────
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "likes",
+          filter: `post_id=eq.${post.id}`,
+        },
+        (payload) => {
+          // Ignore own actions — already handled by optimistic update
+          if (payload.new.user_id === currentUserId) return;
+          setLikeCount((n) => n + 1);
+        },
+      )
+      // ── Likes: DELETE ────────────────────────────────────────────────────
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "likes",
+          filter: `post_id=eq.${post.id}`,
+        },
+        (payload) => {
+          if (payload.old.user_id === currentUserId) return;
+          setLikeCount((n) => Math.max(0, n - 1));
+        },
+      )
+      // ── Comments: INSERT ─────────────────────────────────────────────────
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "comments",
+          filter: `post_id=eq.${post.id}`,
+        },
+        async (payload) => {
+          if (payload.new.user_id === currentUserId) return;
+          setCommentCount((n) => n + 1);
+
+          // If the comments panel has been opened, fetch and append the comment
+          if (commentsFetchedRef.current) {
+            const supabase = createClient();
+            const { data } = await supabase
+              .from("comments")
+              .select(
+                "*, profiles:user_id(id, username, display_name, profile_picture)",
+              )
+              .eq("id", payload.new.id)
+              .single();
+
+            if (data) {
+              setComments((prev) => [...prev, data as Comment]);
+            }
+          }
+        },
+      )
+      // ── Comments: DELETE ─────────────────────────────────────────────────
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "comments",
+          filter: `post_id=eq.${post.id}`,
+        },
+        (payload) => {
+          if (payload.old.user_id === currentUserId) return;
+          setCommentCount((n) => Math.max(0, n - 1));
+          setComments((prev) => prev.filter((c) => c.id !== payload.old.id));
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [post.id, currentUserId]);
+
+  // ── Toggle like (self-contained) ─────────────────────────────────────────
+  const handleToggleLike = async () => {
+    if (!currentUserId) return;
+
+    // Optimistic update
+    const willLike = !isLiked;
+    setIsLiked(willLike);
+    setLikeCount((n) => (willLike ? n + 1 : Math.max(0, n - 1)));
+
+    const supabase = createClient();
+
+    if (willLike) {
+      const { error } = await supabase
+        .from("likes")
+        .insert({ post_id: post.id, user_id: currentUserId });
+
+      if (error) {
+        // Revert on failure
+        setIsLiked(false);
+        setLikeCount((n) => Math.max(0, n - 1));
+        return;
+      }
+
+      // Send notification (fire-and-forget)
+      sendPostLikedNotification(
+        post.user_id,
+        currentUserId,
+        currentUserProfile?.display_name || "",
+        post.community_id,
+      ).catch(console.error);
+    } else {
+      const { error } = await supabase
+        .from("likes")
+        .delete()
+        .match({ post_id: post.id, user_id: currentUserId });
+
+      if (error) {
+        // Revert on failure
+        setIsLiked(true);
+        setLikeCount((n) => n + 1);
+      }
+    }
+  };
 
   // ── Fetch comments ────────────────────────────────────────────────────────
 
@@ -206,8 +356,6 @@ export function PostCard({
   };
 
   // ── Delete post ───────────────────────────────────────────────────────────
-  // Likes and comments are removed automatically by ON DELETE CASCADE on their
-  // foreign keys — no extra queries needed here.
 
   const handleDeletePost = async () => {
     if (!currentUserId || deletingPost) return;
@@ -220,7 +368,7 @@ export function PostCard({
       .from("posts")
       .delete()
       .eq("id", post.id)
-      .eq("user_id", currentUserId); // RLS double-check: only own posts
+      .eq("user_id", currentUserId);
 
     if (error) {
       setDeleteError("Failed to delete post. Please try again.");
@@ -229,11 +377,11 @@ export function PostCard({
     }
 
     setDeleteOpen(false);
-    onDelete?.(post.id); // tell parent to remove this card from the list
+    onDelete?.(post.id);
   };
 
   const handleCloseDelete = () => {
-    if (deletingPost) return; // prevent closing mid-delete
+    if (deletingPost) return;
     setDeleteOpen(false);
     setDeleteError(null);
   };
@@ -314,7 +462,6 @@ export function PostCard({
                   Save post
                 </DropdownMenuItem>
 
-                {/* Own post: show delete */}
                 {isOwnPost && (
                   <>
                     <DropdownMenuSeparator />
@@ -328,7 +475,6 @@ export function PostCard({
                   </>
                 )}
 
-                {/* Other user's post: show report */}
                 {!isOwnPost && (
                   <>
                     <DropdownMenuSeparator />
@@ -366,13 +512,13 @@ export function PostCard({
             <Button
               variant="ghost"
               size="sm"
-              className={cn(post.isLiked && "text-red-500")}
-              onClick={onToggleLike}
+              className={cn(isLiked && "text-red-500")}
+              onClick={handleToggleLike}
             >
               <Heart
-                className={cn("mr-1 h-4 w-4", post.isLiked && "fill-current")}
+                className={cn("mr-1 h-4 w-4", isLiked && "fill-current")}
               />
-              {post.likes[0]?.count ?? 0}
+              {likeCount}
             </Button>
 
             <Button

@@ -59,6 +59,7 @@ import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import Loading from "./loading";
 import { useCurrentUser } from "@/components/providers/current-user-provider";
+import Image from "next/image";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -71,6 +72,18 @@ type Report = Tables<"reports"> & {
     Profile,
     "id" | "username" | "display_name" | "profile_picture"
   > | null;
+};
+
+type ReportedPost = {
+  content: string;
+  image_url: string | null;
+  created_at: string | null;
+  community_id: string;
+  profiles: {
+    display_name: string | null;
+    username: string | null;
+    profile_picture: string | null;
+  } | null;
 };
 
 type Stats = {
@@ -103,9 +116,7 @@ function AccessDenied() {
 function AdminContent() {
   const { user: authUser } = useCurrentUser();
 
-  // ✅ Stable supabase reference
-
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null); // null = loading
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [stats, setStats] = useState<Stats>({
     totalUsers: 0,
     totalCommunities: 0,
@@ -113,7 +124,6 @@ function AdminContent() {
     resolvedReports: 0,
   });
 
-  // Tab-specific state
   const [users, setUsers] = useState<Profile[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [communities, setCommunities] = useState<Community[]>([]);
@@ -145,7 +155,7 @@ function AdminContent() {
       });
   }, [authUser?.id]);
 
-  // ── Fetch stats (always loaded) ────────────────────────────────────────────
+  // ── Fetch stats ────────────────────────────────────────────────────────────
 
   const fetchStats = useCallback(async () => {
     const supabase = createClient();
@@ -731,7 +741,38 @@ function ReportCard({
   onDismiss: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [reportedPost, setReportedPost] = useState<ReportedPost | null>(null);
+  const [loadingPost, setLoadingPost] = useState(false);
+  const [deletePostOpen, setDeletePostOpen] = useState(false);
+  const [deletingPost, setDeletingPost] = useState(false);
   const isResolved = report.status === "resolved";
+
+  const handleOpenChange = async (newOpen: boolean) => {
+    setOpen(newOpen);
+    if (newOpen && report.reported_content_type === "post" && !reportedPost) {
+      setLoadingPost(true);
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("posts")
+        .select(
+          "content, image_url, created_at, community_id, profiles:user_id(display_name, username, profile_picture)",
+        )
+        .eq("id", report.reported_content_id)
+        .maybeSingle();
+      setReportedPost(data as ReportedPost | null);
+      setLoadingPost(false);
+    }
+  };
+
+  const handleDeletePost = async () => {
+    setDeletingPost(true);
+    const supabase = createClient();
+    await supabase.from("posts").delete().eq("id", report.reported_content_id);
+    setDeletingPost(false);
+    setDeletePostOpen(false);
+    onResolve();
+    setOpen(false);
+  };
 
   return (
     <Card className={isResolved ? "opacity-60" : ""}>
@@ -769,56 +810,202 @@ function ReportCard({
           {!isResolved && (
             <div className="flex shrink-0 gap-2">
               {/* Review dialog */}
-              <Dialog open={open} onOpenChange={setOpen}>
+              <Dialog open={open} onOpenChange={handleOpenChange}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
                     <Eye className="mr-2 h-4 w-4" />
                     Review
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="sm:max-w-lg">
                   <DialogHeader>
                     <DialogTitle>Review Report</DialogTitle>
                     <DialogDescription>
-                      Decide how to handle this reported content.
+                      Inspect the reported content and decide how to handle it.
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 py-2">
-                    <div>
-                      <Label className="text-xs text-muted-foreground uppercase tracking-wide">
-                        Content Type
-                      </Label>
-                      <p className="mt-1 capitalize">
-                        {report.reported_content_type}
-                      </p>
+
+                  <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto pr-1">
+                    {/* ── Report metadata ── */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+                          Content Type
+                        </Label>
+                        <p className="mt-1 capitalize text-sm">
+                          {report.reported_content_type}
+                        </p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+                          Reporter
+                        </Label>
+                        <p className="mt-1 text-sm">
+                          {report.reporter?.display_name ||
+                            report.reporter?.username ||
+                            "Unknown"}
+                        </p>
+                      </div>
                     </div>
+
                     <div>
                       <Label className="text-xs text-muted-foreground uppercase tracking-wide">
                         Reason
                       </Label>
-                      <p className="mt-1">{report.reason}</p>
+                      <p className="mt-1 text-sm font-medium">
+                        {report.reason}
+                      </p>
                     </div>
+
                     {report.description && (
                       <div>
                         <Label className="text-xs text-muted-foreground uppercase tracking-wide">
-                          Details
+                          Additional Details
                         </Label>
                         <p className="mt-1 text-sm text-muted-foreground">
                           {report.description}
                         </p>
                       </div>
                     )}
-                    <div>
-                      <Label className="text-xs text-muted-foreground uppercase tracking-wide">
-                        Reporter
-                      </Label>
-                      <p className="mt-1">
-                        {report.reporter?.display_name ||
-                          report.reporter?.username ||
-                          "Unknown"}
-                      </p>
-                    </div>
+
+                    {/* ── Reported post content ── */}
+                    {report.reported_content_type === "post" && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+                          Reported Post
+                        </Label>
+                        <div className="mt-2 rounded-lg border border-border bg-muted/40 p-3">
+                          {loadingPost ? (
+                            <div className="flex items-center justify-center py-4">
+                              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                            </div>
+                          ) : reportedPost ? (
+                            <div className="space-y-2">
+                              {/* Author row */}
+                              <div className="flex items-center gap-2">
+                                <Avatar className="h-6 w-6">
+                                  <AvatarImage
+                                    src={
+                                      reportedPost.profiles?.profile_picture ||
+                                      "/placeholder.svg"
+                                    }
+                                  />
+                                  <AvatarFallback className="text-xs">
+                                    {(
+                                      reportedPost.profiles?.display_name ||
+                                      reportedPost.profiles?.username ||
+                                      "?"
+                                    ).charAt(0)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-xs font-medium">
+                                  {reportedPost.profiles?.display_name ||
+                                    reportedPost.profiles?.username ||
+                                    "Unknown user"}
+                                </span>
+                                {reportedPost.created_at && (
+                                  <span className="ml-auto text-xs text-muted-foreground">
+                                    {formatDistanceToNow(
+                                      new Date(reportedPost.created_at),
+                                      { addSuffix: true },
+                                    )}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Post text */}
+                              <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                                {reportedPost.content}
+                              </p>
+
+                              {/* Post image */}
+                              {reportedPost.image_url && (
+                                <div className="relative mt-2 aspect-video overflow-hidden rounded-md border border-border">
+                                  <Image
+                                    src={reportedPost.image_url}
+                                    alt="Post image"
+                                    className="h-full w-full object-cover"
+                                    fill
+                                  />
+                                </div>
+                              )}
+
+                              {/* Quick actions */}
+                              <div className="flex gap-2 pt-2 border-t border-border mt-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs"
+                                  asChild
+                                >
+                                  <a
+                                    href={`/communities/${reportedPost.community_id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <Eye className="mr-1.5 h-3 w-3" />
+                                    View in Community
+                                  </a>
+                                </Button>
+
+                                <Dialog
+                                  open={deletePostOpen}
+                                  onOpenChange={setDeletePostOpen}
+                                >
+                                  <DialogTrigger asChild>
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      className="text-xs"
+                                    >
+                                      <Trash2 className="mr-1.5 h-3 w-3" />
+                                      Delete Post
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent>
+                                    <DialogHeader>
+                                      <DialogTitle>Delete Post</DialogTitle>
+                                      <DialogDescription>
+                                        This will permanently delete the
+                                        reported post and automatically resolve
+                                        the report. This action cannot be
+                                        undone.
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    <DialogFooter className="gap-2">
+                                      <Button
+                                        variant="outline"
+                                        onClick={() => setDeletePostOpen(false)}
+                                      >
+                                        Cancel
+                                      </Button>
+                                      <Button
+                                        variant="destructive"
+                                        onClick={handleDeletePost}
+                                        disabled={deletingPost}
+                                      >
+                                        {deletingPost ? (
+                                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <Trash2 className="mr-2 h-4 w-4" />
+                                        )}
+                                        Delete &amp; Resolve
+                                      </Button>
+                                    </DialogFooter>
+                                  </DialogContent>
+                                </Dialog>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="py-2 text-sm text-muted-foreground italic">
+                              Post not found — it may have already been deleted.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
+
                   <DialogFooter className="gap-2">
                     <Button
                       variant="outline"
@@ -878,7 +1065,7 @@ function DeleteCommunityItem({
         <DropdownMenuItem
           className="text-destructive focus:text-destructive"
           onSelect={(e) => {
-            e.preventDefault(); // keep dropdown from closing before dialog opens
+            e.preventDefault();
             setOpen(true);
           }}
         >

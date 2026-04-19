@@ -12,7 +12,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-// import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -34,6 +33,8 @@ import {
   Loader2,
   Check,
   Trash2,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCurrentUser } from "@/components/providers/current-user-provider";
@@ -43,6 +44,7 @@ import { Hobby } from "@/lib/types";
 import { useTheme } from "next-themes";
 import { PushNotificationToggle } from "@/components/push-notification-toggle";
 import { useCurrentUserHobbies } from "@/hooks/use-current-user-hobbies";
+import { useUsernameCheck } from "@/hooks/use-username-check";
 
 type ProfileData = {
   name: string;
@@ -73,11 +75,11 @@ export default function SettingsPage() {
   const [profileData, setProfileData] = useState<ProfileData>(
     {} as ProfileData,
   );
-  // const [notificationSettings, setNotificationSettings] = useState({
-  //   pushNotifications: true,
-  // });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Username availability check — excludes the current user's own profile
+  const usernameCheck = useUsernameCheck(profileData.username ?? "", user?.id);
 
   useEffect(() => {
     if (!user) return;
@@ -101,9 +103,6 @@ export default function SettingsPage() {
         location: user?.profile?.location || "",
       }));
       setUserHobbiesState(userHobbies.map((h) => h.id));
-      // setNotificationSettings({
-      //   pushNotifications: user?.profile?.push_notifications ?? true,
-      // });
     };
 
     updateLocalState();
@@ -119,6 +118,9 @@ export default function SettingsPage() {
   }, [avatarPreview]);
 
   const handleSaveProfile = async () => {
+    // Block save if username is taken
+    if (usernameCheck.isTaken) return;
+
     setActionLoading("profile");
     const supabase = createClient();
 
@@ -128,15 +130,13 @@ export default function SettingsPage() {
         hobby_id: hobbyId,
       }));
 
-      let uploadedAvatarUrl = profileData.profilePicture; // Keep existing URL if no new file
+      let uploadedAvatarUrl = profileData.profilePicture;
 
-      // Upload new avatar if one was selected
       if (selectedAvatarFile) {
         uploadedAvatarUrl = (await handleAvatarUpload(
           selectedAvatarFile,
         )) as string;
 
-        // Clean up the preview blob
         if (avatarPreview) {
           URL.revokeObjectURL(avatarPreview);
           setAvatarPreview(null);
@@ -194,32 +194,6 @@ export default function SettingsPage() {
     }
   };
 
-  // const togglePushNotifications = async (value: boolean) => {
-  //   setActionLoading("notifications");
-  //   try {
-  //     const { error } = await supabase
-  //       .from("profiles")
-  //       .update({
-  //         push_notifications: value,
-  //       })
-  //       .eq("id", user!.id);
-
-  //     if (error) {
-  //       console.error("Error updating notification settings", error);
-  //       throw error;
-  //     } else {
-  //       setNotificationSettings((prev) => ({
-  //         ...prev,
-  //         pushNotifications: value,
-  //       }));
-  //     }
-  //   } catch (error) {
-  //     console.error("Error updating notification settings", error);
-  //   } finally {
-  //     setActionLoading(null);
-  //   }
-  // };
-
   const handleAvatarInputChange = async (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
@@ -248,6 +222,7 @@ export default function SettingsPage() {
       return [...prev, interest];
     });
   };
+
   if (loading || isLoading) {
     return (
       <div className="flex h-full w-full items-center justify-center">
@@ -257,6 +232,14 @@ export default function SettingsPage() {
   }
 
   if (!user) return null;
+
+  // Whether the username field is long enough to trigger a check
+  const showUsernameCheck = (profileData.username?.length ?? 0) >= 3;
+  // Whether saving should be blocked
+  const saveDisabled =
+    actionLoading === "profile" ||
+    usernameCheck.isTaken ||
+    usernameCheck.checking;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 pb-20 lg:pb-6">
@@ -350,7 +333,15 @@ export default function SettingsPage() {
                     </span>
                     <Input
                       id="username"
-                      className="rounded-l-none"
+                      className={cn(
+                        "rounded-l-none",
+                        showUsernameCheck &&
+                          usernameCheck.isTaken &&
+                          "border-destructive focus-visible:border-destructive",
+                        showUsernameCheck &&
+                          usernameCheck.isAvailable &&
+                          "border-green-500 focus-visible:border-green-500",
+                      )}
                       value={profileData.username}
                       onChange={(e) =>
                         setProfileData({
@@ -360,6 +351,33 @@ export default function SettingsPage() {
                       }
                     />
                   </div>
+                  {/* Username availability indicator */}
+                  {showUsernameCheck && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      {usernameCheck.checking ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                          <span className="text-muted-foreground">
+                            Checking availability…
+                          </span>
+                        </>
+                      ) : usernameCheck.isTaken ? (
+                        <>
+                          <XCircle className="h-3 w-3 text-destructive" />
+                          <span className="text-destructive">
+                            Username already taken
+                          </span>
+                        </>
+                      ) : usernameCheck.isAvailable ? (
+                        <>
+                          <CheckCircle2 className="h-3 w-3 text-green-600" />
+                          <span className="text-green-600">
+                            Username available
+                          </span>
+                        </>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -434,10 +452,7 @@ export default function SettingsPage() {
 
           <div className="flex justify-end gap-2">
             <Button variant="outline">Cancel</Button>
-            <Button
-              onClick={handleSaveProfile}
-              disabled={actionLoading === "profile"}
-            >
+            <Button onClick={handleSaveProfile} disabled={saveDisabled}>
               {actionLoading === "profile" ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -467,14 +482,6 @@ export default function SettingsPage() {
                   </p>
                 </div>
                 <PushNotificationToggle />
-
-                {/* <Switch
-                  checked={notificationSettings.pushNotifications}
-                  onCheckedChange={(checked) =>
-                    togglePushNotifications(checked)
-                  }
-                  disabled={actionLoading === "notifications"}
-                /> */}
               </div>
             </CardContent>
           </Card>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -27,16 +27,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Plus, Users, TrendingUp, Loader2 } from "lucide-react";
+import {
+  Search,
+  Plus,
+  Users,
+  TrendingUp,
+  Loader2,
+  ImageIcon,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Suspense } from "react";
 import Loading from "./loading";
 import { createClient } from "@/lib/supabase/client";
 import { Tables } from "@/lib/database.types";
 import { useCurrentUser } from "@/components/providers/current-user-provider";
+import { useHandleMediaUpload } from "@/hooks/use-handle-media-upload";
 
-const categories = [
-  "All",
+// Default categories used as fallback and for the "All" filter
+const DEFAULT_CATEGORIES = [
   "Technology",
   "Design",
   "Business",
@@ -53,6 +62,12 @@ type Community = Tables<"communities"> & {
 
 export default function CommunitiesPage() {
   const { user } = useCurrentUser();
+  const {
+    handleMediaUpload,
+    isUploadingMedia,
+    error: mediaError,
+  } = useHandleMediaUpload();
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const [allCommunities, setAllCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,11 +76,55 @@ export default function CommunitiesPage() {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [isCreating, setIsCreating] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  // ── Dynamic categories from Supabase ────────────────────────────────────
+  const [categories, setCategories] = useState<string[]>([
+    "All",
+    ...DEFAULT_CATEGORIES,
+  ]);
+
   const [newCommunity, setNewCommunity] = useState({
     name: "",
     description: "",
-    category: "Technology",
+    category: DEFAULT_CATEGORIES[0],
+    imageFile: null as File | null,
+    imagePreview: null as string | null,
   });
+
+  // ── Fetch distinct categories from communities ───────────────────────────
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("communities")
+        .select("category")
+        .not("category", "is", null);
+
+      if (data) {
+        const dbCategories = [
+          ...new Set(
+            data
+              .map((c) => c.category)
+              .filter((c): c is string => !!c && c.trim() !== ""),
+          ),
+        ].sort();
+
+        // Merge DB categories with defaults, deduplicate, keep "All" first
+        const merged = [
+          "All",
+          ...new Set([...DEFAULT_CATEGORIES, ...dbCategories]),
+        ].sort((a, b) => {
+          if (a === "All") return -1;
+          if (b === "All") return 1;
+          return a.localeCompare(b);
+        });
+        setCategories(merged);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   // ── Fetch communities ────────────────────────────────────────────────────
 
@@ -73,7 +132,6 @@ export default function CommunitiesPage() {
     if (!user?.id) return;
     const supabase = createClient();
 
-    // Run both queries in parallel
     const [communitiesResult, membersResult] = await Promise.all([
       supabase.from("communities").select("*, community_members(count)"),
       supabase
@@ -100,8 +158,6 @@ export default function CommunitiesPage() {
     );
   }, [user]);
 
-  // ✅ No synchronous setState in the effect body — loading state is managed
-  //    by the effect wrapper, fetch logic stays reusable via useCallback
   useEffect(() => {
     if (!user?.id) return;
 
@@ -137,7 +193,6 @@ export default function CommunitiesPage() {
         return;
       }
 
-      // Optimistic update
       setAllCommunities((prev) =>
         prev.map((c) => (c.id === communityId ? { ...c, isMember: true } : c)),
       );
@@ -161,20 +216,42 @@ export default function CommunitiesPage() {
         return;
       }
 
-      // Optimistic update
       setAllCommunities((prev) =>
-        prev.map((c) =>
-          c.id === communityId
-            ? {
-                ...c,
-                isMember: false,
-              }
-            : c,
-        ),
+        prev.map((c) => (c.id === communityId ? { ...c, isMember: false } : c)),
       );
     },
     [user],
   );
+
+  // ── Image selection ───────────────────────────────────────────────────────
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/") || file.size > 1024 * 1024) return;
+
+    const preview = URL.createObjectURL(file);
+    setNewCommunity((prev) => ({
+      ...prev,
+      imageFile: file,
+      imagePreview: preview,
+    }));
+
+    // Reset input so the same file can be reselected
+    e.target.value = "";
+  };
+
+  const handleRemoveImage = () => {
+    if (newCommunity.imagePreview) {
+      URL.revokeObjectURL(newCommunity.imagePreview);
+    }
+    setNewCommunity((prev) => ({
+      ...prev,
+      imageFile: null,
+      imagePreview: null,
+    }));
+  };
 
   // ── Create community ─────────────────────────────────────────────────────
 
@@ -183,6 +260,13 @@ export default function CommunitiesPage() {
     setIsCreating(true);
     const supabase = createClient();
 
+    // Upload image if one was selected
+    let imageUrl: string | null = null;
+    if (newCommunity.imageFile) {
+      const uploaded = await handleMediaUpload(newCommunity.imageFile);
+      if (uploaded) imageUrl = uploaded;
+    }
+
     const { data, error } = await supabase
       .from("communities")
       .insert({
@@ -190,6 +274,7 @@ export default function CommunitiesPage() {
         description: newCommunity.description,
         category: newCommunity.category,
         created_by: user.id,
+        image_url: imageUrl,
       })
       .select()
       .single();
@@ -200,20 +285,53 @@ export default function CommunitiesPage() {
       return;
     }
 
-    // Insert creator as a member with role 'admin'
+    // Insert creator as admin member
     await supabase.from("community_members").insert({
       community_id: data.id,
       user_id: user.id,
       role: "admin",
     });
 
-    // Add to local state directly — no need to re-fetch
-    setAllCommunities((prev) => [{ ...data, isMember: true }, ...prev]);
+    // If category is new, add it to the local list
+    if (newCommunity.category && !categories.includes(newCommunity.category)) {
+      setCategories((prev) => {
+        const updated = [...prev, newCommunity.category].sort((a, b) => {
+          if (a === "All") return -1;
+          if (b === "All") return 1;
+          return a.localeCompare(b);
+        });
+        return updated;
+      });
+    }
 
-    setNewCommunity({ name: "", description: "", category: "Technology" });
+    // Cleanup image preview blob
+    if (newCommunity.imagePreview) {
+      URL.revokeObjectURL(newCommunity.imagePreview);
+    }
+
+    setAllCommunities((prev) => [{ ...data, isMember: true }, ...prev]);
+    setNewCommunity({
+      name: "",
+      description: "",
+      category: DEFAULT_CATEGORIES[0],
+      imageFile: null,
+      imagePreview: null,
+    });
     setIsCreating(false);
     setCreateDialogOpen(false);
     setActiveTab("my");
+  };
+
+  const handleCloseDialog = (open: boolean) => {
+    if (!open && newCommunity.imagePreview) {
+      URL.revokeObjectURL(newCommunity.imagePreview);
+      setNewCommunity((prev) => ({
+        ...prev,
+        imageFile: null,
+        imagePreview: null,
+      }));
+    }
+    setCreateDialogOpen(open);
   };
 
   // ── Derived state ────────────────────────────────────────────────────────
@@ -264,7 +382,7 @@ export default function CommunitiesPage() {
             </p>
           </div>
 
-          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <Dialog open={createDialogOpen} onOpenChange={handleCloseDialog}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
@@ -280,6 +398,61 @@ export default function CommunitiesPage() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                {/* ── Community image upload ── */}
+                <div className="space-y-2">
+                  <Label>Community Image</Label>
+                  {newCommunity.imagePreview ? (
+                    <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border">
+                      <Image
+                        src={newCommunity.imagePreview}
+                        alt="Community preview"
+                        fill
+                        className="object-cover"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="icon"
+                        className="absolute right-2 top-2 h-7 w-7 rounded-full bg-background/80 backdrop-blur-sm"
+                        onClick={handleRemoveImage}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <label
+                      htmlFor="community-image-upload"
+                      className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted/40 py-6 transition-colors hover:bg-muted/60"
+                    >
+                      {isUploadingMedia ? (
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      ) : (
+                        <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                      )}
+                      <span className="text-sm text-muted-foreground">
+                        {isUploadingMedia
+                          ? "Uploading..."
+                          : "Click to upload an image"}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        JPG, PNG or GIF · Max 1 MB
+                      </span>
+                    </label>
+                  )}
+                  <input
+                    ref={imageInputRef}
+                    id="community-image-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageSelect}
+                    disabled={isUploadingMedia}
+                  />
+                  {mediaError && (
+                    <p className="text-xs text-destructive">{mediaError}</p>
+                  )}
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="name">Community Name</Label>
                   <Input
@@ -318,11 +491,14 @@ export default function CommunitiesPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {categories.slice(1).map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat}
-                        </SelectItem>
-                      ))}
+                      {/* All categories except "All" filter entry */}
+                      {categories
+                        .filter((c) => c !== "All")
+                        .map((cat) => (
+                          <SelectItem key={cat} value={cat}>
+                            {cat}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -330,13 +506,15 @@ export default function CommunitiesPage() {
               <DialogFooter>
                 <Button
                   variant="outline"
-                  onClick={() => setCreateDialogOpen(false)}
+                  onClick={() => handleCloseDialog(false)}
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleCreateCommunity}
-                  disabled={!newCommunity.name.trim() || isCreating}
+                  disabled={
+                    !newCommunity.name.trim() || isCreating || isUploadingMedia
+                  }
                 >
                   {isCreating ? (
                     <>

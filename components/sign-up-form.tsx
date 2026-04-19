@@ -59,7 +59,8 @@ export function SignUpForm({
         },
       });
       if (error) throw error;
-      router.push("/auth/sign-up-success");
+      // Pass email to the success page so it can be displayed to the user
+      router.push(`/auth/sign-up-success?email=${encodeURIComponent(email)}`);
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {
@@ -85,7 +86,7 @@ export function SignUpForm({
           <CardHeader className="space-y-1">
             <CardTitle className="text-xl">Sign up</CardTitle>
             <CardDescription>
-              Enter your details to create your accountt
+              Enter your details to create your account
             </CardDescription>
           </CardHeader>
           <CardContent>

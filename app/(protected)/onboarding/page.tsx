@@ -15,13 +15,22 @@ import {
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, ArrowRight, Camera, Check, Loader2 } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Camera,
+  Check,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { Hobby } from "@/lib/types";
 import { useHandleAvatarUpload } from "@/hooks/use-handle-avatar-upload";
+import { useUsernameCheck } from "@/hooks/use-username-check";
 
 const steps = [
   {
@@ -68,6 +77,9 @@ export default function OnboardingPage() {
     avatarUrl: "",
   });
 
+  // Real-time username availability check
+  const usernameCheck = useUsernameCheck(formData.username, user?.id);
+
   const progress = ((currentStep + 1) / steps.length) * 100;
 
   const handleNext = (e: React.FormEvent) => {
@@ -80,8 +92,20 @@ export default function OnboardingPage() {
         return;
       }
 
+      if (usernameCheck.isTaken) {
+        setError("That username is already taken. Please choose another.");
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
+
+      if (usernameCheck.checking) {
+        setError("Please wait while we check username availability.");
+        setTimeout(() => setError(null), 3000);
+        return;
+      }
+
       if (formData.avatarUrl.trim() === "") {
-        setError("Avatar must be uploaded");
+        setError("Please upload a profile photo to continue.");
         setTimeout(() => setError(null), 5000);
         return;
       }
@@ -167,6 +191,12 @@ export default function OnboardingPage() {
         : [...prev.hobbies, interest],
     }));
   };
+
+  // Derive whether we can proceed from step 0
+  const usernameValid =
+    formData.username.length >= 3 &&
+    !usernameCheck.checking &&
+    !usernameCheck.isTaken;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -262,13 +292,46 @@ export default function OnboardingPage() {
                       <Input
                         id="username"
                         placeholder="johndoe"
-                        className="rounded-l-none"
+                        className={cn(
+                          "rounded-l-none",
+                          usernameCheck.isTaken &&
+                            "border-destructive focus-visible:border-destructive",
+                          usernameCheck.isAvailable &&
+                            "border-green-500 focus-visible:border-green-500",
+                        )}
                         value={formData.username}
                         onChange={(e) =>
                           setFormData({ ...formData, username: e.target.value })
                         }
                       />
                     </div>
+                    {/* Username availability indicator */}
+                    {formData.username.length >= 3 && (
+                      <div className="flex items-center gap-1.5 text-xs">
+                        {usernameCheck.checking ? (
+                          <>
+                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                            <span className="text-muted-foreground">
+                              Checking availability…
+                            </span>
+                          </>
+                        ) : usernameCheck.isTaken ? (
+                          <>
+                            <XCircle className="h-3 w-3 text-destructive" />
+                            <span className="text-destructive">
+                              Username already taken
+                            </span>
+                          </>
+                        ) : usernameCheck.isAvailable ? (
+                          <>
+                            <CheckCircle2 className="h-3 w-3 text-green-600" />
+                            <span className="text-green-600">
+                              Username available
+                            </span>
+                          </>
+                        ) : null}
+                      </div>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       This is how others will find and mention you
                     </p>
@@ -332,6 +395,11 @@ export default function OnboardingPage() {
                       </button>
                     ))}
                   </div>
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
                   <p className="text-sm text-muted-foreground">
                     Selected: {formData.hobbies.length} / 2 minimum
                   </p>
@@ -350,7 +418,12 @@ export default function OnboardingPage() {
                 </Button>
 
                 {currentStep < steps.length - 1 ? (
-                  <Button type="submit">
+                  <Button
+                    type="submit"
+                    disabled={
+                      steps[currentStep].id === "profile" && !usernameValid
+                    }
+                  >
                     Continue
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>

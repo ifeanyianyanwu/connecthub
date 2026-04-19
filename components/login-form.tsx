@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Alert, AlertDescription } from "./ui/alert";
+import { MailCheck, Loader2, RefreshCw } from "lucide-react";
 
 export function LoginForm({
   className,
@@ -25,6 +26,12 @@ export function LoginForm({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Email confirmation states
+  const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
+
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -32,6 +39,7 @@ export function LoginForm({
     const supabase = createClient();
     setIsLoading(true);
     setError(null);
+    setEmailNotConfirmed(false);
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
@@ -39,13 +47,45 @@ export function LoginForm({
         password,
       });
       if (error) throw error;
-    
       router.push("/home");
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred");
+      const message =
+        error instanceof Error ? error.message : "An error occurred";
+
+      // Detect the specific "email not confirmed" error from Supabase
+      if (message.toLowerCase().includes("email not confirmed")) {
+        setEmailNotConfirmed(true);
+      } else {
+        setError(message);
+      }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!email) return;
+    setIsResending(true);
+    setResendSuccess(false);
+
+    const supabase = createClient();
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
+
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email,
+      options: {
+        emailRedirectTo: `${baseUrl}/onboarding`,
+      },
+    });
+
+    if (!error) {
+      setResendSuccess(true);
+    } else {
+      setError("Failed to resend confirmation email. Please try again.");
+    }
+
+    setIsResending(false);
   };
 
   return (
@@ -62,6 +102,60 @@ export function LoginForm({
             Sign in to your ConnectHub account
           </p>
         </div>
+
+        {/* ── Email not confirmed banner ── */}
+        {emailNotConfirmed && (
+          <Card className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center gap-3 text-center">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900">
+                  <MailCheck className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm text-amber-900 dark:text-amber-100">
+                    Email not confirmed
+                  </p>
+                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                    Please confirm your email address before signing in.
+                    {email && (
+                      <>
+                        {" "}
+                        We sent a link to{" "}
+                        <span className="font-medium">{email}</span>.
+                      </>
+                    )}
+                  </p>
+                </div>
+                {resendSuccess ? (
+                  <p className="text-xs font-medium text-green-600 dark:text-green-400">
+                    Confirmation email resent — check your inbox.
+                  </p>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleResendConfirmation}
+                    disabled={isResending || !email}
+                    className="border-amber-300 bg-transparent hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900"
+                  >
+                    {isResending ? (
+                      <>
+                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="mr-2 h-3 w-3" />
+                        Resend confirmation email
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader className="space-y-1">
             <CardTitle className="text-xl">Sign in</CardTitle>
@@ -72,7 +166,7 @@ export function LoginForm({
           <CardContent>
             <form onSubmit={handleLogin}>
               {error && (
-                <Alert variant="destructive">
+                <Alert variant="destructive" className="mb-4">
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
@@ -85,7 +179,14 @@ export function LoginForm({
                     placeholder="m@example.com"
                     required
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      // Reset confirmation state when user edits email
+                      if (emailNotConfirmed) {
+                        setEmailNotConfirmed(false);
+                        setResendSuccess(false);
+                      }
+                    }}
                   />
                 </div>
                 <div className="grid gap-2">
@@ -106,7 +207,6 @@ export function LoginForm({
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
-                {error && <p className="text-sm text-red-500">{error}</p>}
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? "Logging in..." : "Login"}
                 </Button>
