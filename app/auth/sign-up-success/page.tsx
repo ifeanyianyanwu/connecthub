@@ -5,7 +5,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MailCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { MailCheck, ArrowLeft } from "lucide-react";
+import Link from "next/link";
 
 interface Props {
   searchParams: Promise<{ email?: string }>;
@@ -32,7 +34,7 @@ export default async function Page({ searchParams }: Props) {
                 We sent a confirmation link to verify your account
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
               {email ? (
                 <p className="text-center text-sm text-muted-foreground">
                   A confirmation email has been sent to{" "}
@@ -51,6 +53,14 @@ export default async function Page({ searchParams }: Props) {
                 Didn&apos;t receive the email? Check your spam folder or try
                 signing in to resend it.
               </p>
+
+              {/* PWA-friendly navigation — standalone mode has no browser chrome */}
+              <Button asChild className="w-full" variant="outline">
+                <Link href="/auth/login">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to Login
+                </Link>
+              </Button>
             </CardContent>
           </Card>
         </div>

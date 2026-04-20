@@ -28,6 +28,7 @@ import Loading from "./loading";
 import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { Profile } from "@/lib/types";
 import { sendConnectionRequestNotification } from "@/app/actions/notify";
+import { toast } from "sonner";
 
 type UserProfile = Omit<
   Profile,
@@ -121,6 +122,7 @@ export default function DiscoverPage() {
         setAllUsers(enrichedUsers);
       } catch (error) {
         console.error("Error in Discover discovery flow:", error);
+        toast.error("Failed to load recommendations.");
       } finally {
         setLoading(false);
       }
@@ -129,15 +131,17 @@ export default function DiscoverPage() {
     fetchData();
   }, [user]);
 
-  const handleConnect = async (targetUserId: string) => {
+  const handleConnect = async (targetUserId: string, targetName: string) => {
     if (!user) return;
     const supabase = createClient();
 
     try {
       setActionLoading(targetUserId);
+      // Optimistic update
       setConnectionMap((prev) =>
         new Map(prev).set(targetUserId, "pending_sent"),
       );
+
       const { error } = await supabase.from("connections").insert({
         user1_id: user.id,
         user2_id: targetUserId,
@@ -149,13 +153,17 @@ export default function DiscoverPage() {
         user.id,
         user.profile?.display_name || "",
       ).catch(console.error);
+
+      toast.success(`Connection request sent to ${targetName || "user"}.`);
     } catch (error) {
       console.error("Error sending request:", error);
+      // Revert optimistic update
       setConnectionMap((prev) => {
         const newMap = new Map(prev);
         newMap.delete(targetUserId);
         return newMap;
       });
+      toast.error("Failed to send connection request. Please try again.");
     } finally {
       setActionLoading(null);
     }
@@ -186,13 +194,10 @@ export default function DiscoverPage() {
   const filteredRecommended = useMemo(() => {
     const recommendations = allUsers.filter((u) => {
       const status = connectionMap.get(u.id);
-
       const isNew = status !== "connected" && status !== "pending_sent";
       const isHighQuality = u.matchScore >= 15;
-
       return isNew && isHighQuality;
     });
-
     return filterList(recommendations);
   }, [allUsers, filterList, connectionMap]);
 
@@ -220,7 +225,7 @@ export default function DiscoverPage() {
     return "Matched based on overall social compatibility.";
   };
 
-  const renderActionButton = (userId: string) => {
+  const renderActionButton = (userId: string, displayName: string) => {
     const status = connectionMap.get(userId);
     const isLoading = actionLoading === userId;
 
@@ -261,7 +266,7 @@ export default function DiscoverPage() {
 
     return (
       <Button
-        onClick={() => handleConnect(userId)}
+        onClick={() => handleConnect(userId, displayName)}
         disabled={isLoading}
         size="sm"
         className="w-full sm:w-auto"
@@ -337,45 +342,43 @@ export default function DiscoverPage() {
         <TabsContent value="recommended">
           <div className="space-y-4">
             {filteredRecommended.length > 0 ? (
-              filteredRecommended.map((user) => (
-                <Card key={user.id}>
+              filteredRecommended.map((u) => (
+                <Card key={u.id}>
                   <CardContent className="pt-6">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <Link
-                        href={`/user/${user.id}`}
+                        href={`/user/${u.id}`}
                         className="flex items-start gap-4"
                       >
                         <Avatar className="h-16 w-16">
                           <AvatarImage
-                            src={user.profile_picture || "/placeholder.svg"}
-                            alt={user.display_name || "User"}
+                            src={u.profile_picture || "/placeholder.svg"}
+                            alt={u.display_name || "User"}
                           />
                           <AvatarFallback className="text-xl">
-                            {(user.display_name ||
-                              user.username ||
+                            {(u.display_name ||
+                              u.username ||
                               "U")[0].toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div>
                           <div className="flex items-center gap-2">
                             <h3 className="font-semibold hover:underline">
-                              {user.display_name ||
-                                user.username ||
-                                "Anonymous"}
+                              {u.display_name || u.username || "Anonymous"}
                             </h3>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Badge
                                   className={cn(
                                     "border-none",
-                                    user.matchScore > 80
+                                    u.matchScore > 80
                                       ? "bg-green-100 text-green-700"
-                                      : user.matchScore > 50
+                                      : u.matchScore > 50
                                         ? "bg-blue-100 text-blue-700"
                                         : "bg-gray-100 text-gray-700",
                                   )}
                                 >
-                                  {user.matchScore}% Match
+                                  {u.matchScore}% Match
                                 </Badge>
                               </TooltipTrigger>
                               <TooltipContent className="w-64 p-3 shadow-xl">
@@ -383,39 +386,32 @@ export default function DiscoverPage() {
                                   <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                                     Match Breakdown
                                   </p>
-
                                   <div className="flex justify-between text-sm">
                                     <span>Shared Interests (60%)</span>
                                     <span className="font-mono">
-                                      {Math.round(user.exact_match_score * 100)}
-                                      %
+                                      {Math.round(u.exact_match_score * 100)}%
                                     </span>
                                   </div>
-
                                   <div className="flex justify-between text-sm">
                                     <span>AI Semantic Match (40%)</span>
                                     <span className="font-mono">
-                                      {Math.round(user.ai_match_score * 100)}%
+                                      {Math.round(u.ai_match_score * 100)}%
                                     </span>
                                   </div>
-
                                   <div className="my-2 border-t border-border" />
-
                                   <p className="text-xs text-muted-foreground leading-relaxed">
-                                    {getMatchReason(user)}
+                                    {getMatchReason(u)}
                                   </p>
                                 </div>
                               </TooltipContent>
                             </Tooltip>
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            @{user.username || "unknown"}
+                            @{u.username || "unknown"}
                           </p>
-                          <p className="mt-1 text-sm line-clamp-2">
-                            {user.bio}
-                          </p>
+                          <p className="mt-1 text-sm line-clamp-2">{u.bio}</p>
                           <div className="mt-2 flex flex-wrap gap-1">
-                            {user.sharedInterests.map((interest) => (
+                            {u.sharedInterests.map((interest) => (
                               <Badge
                                 key={interest}
                                 variant="outline"
@@ -428,7 +424,10 @@ export default function DiscoverPage() {
                         </div>
                       </Link>
                       <div className="flex gap-2 sm:flex-col shrink-0">
-                        {renderActionButton(user.id)}
+                        {renderActionButton(
+                          u.id,
+                          u.display_name || u.username || "",
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -444,56 +443,54 @@ export default function DiscoverPage() {
 
         <TabsContent value="all">
           <div className="grid gap-4 sm:grid-cols-2">
-            {filteredAllUsers.map((user) => (
-              <Card key={user.id}>
+            {filteredAllUsers.map((u) => (
+              <Card key={u.id}>
                 <CardContent className="pt-6">
                   <div className="flex items-start justify-between gap-4">
                     <Link
-                      href={`/user/${user.id}`}
+                      href={`/user/${u.id}`}
                       className="flex items-start gap-3"
                     >
                       <Avatar className="h-12 w-12">
                         <AvatarImage
-                          src={user.profile_picture || "/placeholder.svg"}
-                          alt={user.display_name || "User"}
+                          src={u.profile_picture || "/placeholder.svg"}
+                          alt={u.display_name || "User"}
                         />
-
                         <AvatarFallback>
-                          {(user.display_name ||
-                            user.username ||
+                          {(u.display_name ||
+                            u.username ||
                             "U")[0].toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-
                       <div>
                         <h3 className="font-medium hover:underline">
-                          {user.display_name || user.username || "Anonymous"}
+                          {u.display_name || u.username || "Anonymous"}
                         </h3>
-
                         <p className="text-sm text-muted-foreground">
-                          @{user.username || "unknown"}
+                          @{u.username || "unknown"}
                         </p>
-
-                        <p className="mt-1 line-clamp-2 text-sm">{user.bio}</p>
+                        <p className="mt-1 line-clamp-2 text-sm">{u.bio}</p>
                       </div>
                     </Link>
                   </div>
-
                   <div className="mt-4 flex flex-wrap gap-1">
-                    {user.hobbies.slice(0, 3).map((hobby) => (
+                    {u.hobbies.slice(0, 3).map((hobby) => (
                       <Badge key={hobby} variant="outline" className="text-xs">
                         {hobby}
                       </Badge>
                     ))}
-
-                    {user.hobbies.length > 3 && (
+                    {u.hobbies.length > 3 && (
                       <Badge variant="outline" className="text-xs">
-                        +{user.hobbies.length - 3}
+                        +{u.hobbies.length - 3}
                       </Badge>
                     )}
                   </div>
-
-                  <div className="mt-4">{renderActionButton(user.id)}</div>
+                  <div className="mt-4">
+                    {renderActionButton(
+                      u.id,
+                      u.display_name || u.username || "",
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             ))}

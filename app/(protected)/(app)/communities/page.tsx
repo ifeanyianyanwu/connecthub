@@ -43,17 +43,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Tables } from "@/lib/database.types";
 import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { useHandleMediaUpload } from "@/hooks/use-handle-media-upload";
-
-// Default categories used as fallback and for the "All" filter
-const DEFAULT_CATEGORIES = [
-  "Technology",
-  "Design",
-  "Business",
-  "Photography",
-  "Lifestyle",
-  "Science",
-  "Entertainment",
-];
+import { toast } from "sonner";
 
 type Community = Tables<"communities"> & {
   isMember: boolean;
@@ -76,22 +66,17 @@ export default function CommunitiesPage() {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [isCreating, setIsCreating] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-
-  // ── Dynamic categories from Supabase ────────────────────────────────────
-  const [categories, setCategories] = useState<string[]>([
-    "All",
-    ...DEFAULT_CATEGORIES,
-  ]);
+  const [categories, setCategories] = useState<string[]>(["All"]);
 
   const [newCommunity, setNewCommunity] = useState({
     name: "",
     description: "",
-    category: DEFAULT_CATEGORIES[0],
+    category: "",
     imageFile: null as File | null,
     imagePreview: null as string | null,
   });
 
-  // ── Fetch distinct categories from communities ───────────────────────────
+  // ── Fetch categories from Supabase ────────────────────────────────────────
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -108,13 +93,8 @@ export default function CommunitiesPage() {
               .map((c) => c.category)
               .filter((c): c is string => !!c && c.trim() !== ""),
           ),
-        ].sort();
-
-        // Merge DB categories with defaults, deduplicate, keep "All" first
-        const merged = [
-          "All",
-          ...new Set([...DEFAULT_CATEGORIES, ...dbCategories]),
-        ].sort((a, b) => {
+        ];
+        const merged = ["All", ...new Set(dbCategories)].sort((a, b) => {
           if (a === "All") return -1;
           if (b === "All") return 1;
           return a.localeCompare(b);
@@ -122,11 +102,10 @@ export default function CommunitiesPage() {
         setCategories(merged);
       }
     };
-
     fetchCategories();
   }, []);
 
-  // ── Fetch communities ────────────────────────────────────────────────────
+  // ── Fetch communities ─────────────────────────────────────────────────────
 
   const fetchCommunities = useCallback(async () => {
     if (!user?.id) return;
@@ -149,7 +128,6 @@ export default function CommunitiesPage() {
     }
 
     const memberIds = new Set(membersResult.data.map((m) => m.community_id));
-
     setAllCommunities(
       communitiesResult.data.map((c) => ({
         ...c,
@@ -160,65 +138,57 @@ export default function CommunitiesPage() {
 
   useEffect(() => {
     if (!user?.id) return;
-
     let cancelled = false;
-
     const load = async () => {
       setLoading(true);
       await fetchCommunities();
       if (!cancelled) setLoading(false);
     };
-
     load();
-
     return () => {
       cancelled = true;
     };
   }, [user?.id, fetchCommunities]);
 
-  // ── Join / Leave ─────────────────────────────────────────────────────────
+  // ── Join / Leave ──────────────────────────────────────────────────────────
 
   const joinCommunity = useCallback(
-    async (communityId: string) => {
+    async (communityId: string, communityName: string) => {
       if (!user?.id) return;
-
       const supabase = createClient();
-
       const { error } = await supabase
         .from("community_members")
         .insert({ community_id: communityId, user_id: user.id });
 
       if (error) {
-        console.error("Error joining community:", error);
+        toast.error("Failed to join community. Please try again.");
         return;
       }
-
       setAllCommunities((prev) =>
         prev.map((c) => (c.id === communityId ? { ...c, isMember: true } : c)),
       );
+      toast.success(`Joined ${communityName}!`);
     },
     [user],
   );
 
   const leaveCommunity = useCallback(
-    async (communityId: string) => {
+    async (communityId: string, communityName: string) => {
       if (!user?.id) return;
-
       const supabase = createClient();
-
       const { error } = await supabase
         .from("community_members")
         .delete()
         .match({ community_id: communityId, user_id: user.id });
 
       if (error) {
-        console.error("Error leaving community:", error);
+        toast.error("Failed to leave community. Please try again.");
         return;
       }
-
       setAllCommunities((prev) =>
         prev.map((c) => (c.id === communityId ? { ...c, isMember: false } : c)),
       );
+      toast.success(`Left ${communityName}.`);
     },
     [user],
   );
@@ -228,24 +198,19 @@ export default function CommunitiesPage() {
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     if (!file.type.startsWith("image/") || file.size > 1024 * 1024) return;
-
     const preview = URL.createObjectURL(file);
     setNewCommunity((prev) => ({
       ...prev,
       imageFile: file,
       imagePreview: preview,
     }));
-
-    // Reset input so the same file can be reselected
     e.target.value = "";
   };
 
   const handleRemoveImage = () => {
-    if (newCommunity.imagePreview) {
+    if (newCommunity.imagePreview)
       URL.revokeObjectURL(newCommunity.imagePreview);
-    }
     setNewCommunity((prev) => ({
       ...prev,
       imageFile: null,
@@ -253,14 +218,13 @@ export default function CommunitiesPage() {
     }));
   };
 
-  // ── Create community ─────────────────────────────────────────────────────
+  // ── Create community ──────────────────────────────────────────────────────
 
   const handleCreateCommunity = async () => {
     if (!newCommunity.name.trim() || !user?.id) return;
     setIsCreating(true);
     const supabase = createClient();
 
-    // Upload image if one was selected
     let imageUrl: string | null = null;
     if (newCommunity.imageFile) {
       const uploaded = await handleMediaUpload(newCommunity.imageFile);
@@ -281,18 +245,17 @@ export default function CommunitiesPage() {
 
     if (error || !data) {
       console.error("Error creating community:", error);
+      toast.error("Failed to create community. Please try again.");
       setIsCreating(false);
       return;
     }
 
-    // Insert creator as admin member
     await supabase.from("community_members").insert({
       community_id: data.id,
       user_id: user.id,
       role: "admin",
     });
 
-    // If category is new, add it to the local list
     if (newCommunity.category && !categories.includes(newCommunity.category)) {
       setCategories((prev) => {
         const updated = [...prev, newCommunity.category].sort((a, b) => {
@@ -304,22 +267,21 @@ export default function CommunitiesPage() {
       });
     }
 
-    // Cleanup image preview blob
-    if (newCommunity.imagePreview) {
+    if (newCommunity.imagePreview)
       URL.revokeObjectURL(newCommunity.imagePreview);
-    }
 
     setAllCommunities((prev) => [{ ...data, isMember: true }, ...prev]);
     setNewCommunity({
       name: "",
       description: "",
-      category: DEFAULT_CATEGORIES[0],
+      category: "",
       imageFile: null,
       imagePreview: null,
     });
     setIsCreating(false);
     setCreateDialogOpen(false);
     setActiveTab("my");
+    toast.success(`Community "${data.name}" created!`);
   };
 
   const handleCloseDialog = (open: boolean) => {
@@ -334,7 +296,7 @@ export default function CommunitiesPage() {
     setCreateDialogOpen(open);
   };
 
-  // ── Derived state ────────────────────────────────────────────────────────
+  // ── Derived state ─────────────────────────────────────────────────────────
 
   const myCommunities = useMemo(
     () => allCommunities.filter((c) => c.isMember),
@@ -366,8 +328,6 @@ export default function CommunitiesPage() {
     selectedCategory,
   ]);
 
-  // ─── Render ──────────────────────────────────────────────────────────────
-
   if (loading) return <Loading />;
 
   return (
@@ -398,7 +358,7 @@ export default function CommunitiesPage() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
-                {/* ── Community image upload ── */}
+                {/* Image upload */}
                 <div className="space-y-2">
                   <Label>Community Image</Label>
                   {newCommunity.imagePreview ? (
@@ -491,7 +451,6 @@ export default function CommunitiesPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {/* All categories except "All" filter entry */}
                       {categories
                         .filter((c) => c !== "All")
                         .map((cat) => (
@@ -530,7 +489,7 @@ export default function CommunitiesPage() {
           </Dialog>
         </div>
 
-        {/* Search and Filters */}
+        {/* Search + category filters */}
         <div className="mb-6 space-y-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -606,8 +565,10 @@ export default function CommunitiesPage() {
                     <CommunityCard
                       key={community.id}
                       community={community}
-                      onJoin={() => joinCommunity(community.id)}
-                      onLeave={() => leaveCommunity(community.id)}
+                      onJoin={() => joinCommunity(community.id, community.name)}
+                      onLeave={() =>
+                        leaveCommunity(community.id, community.name)
+                      }
                     />
                   ))}
                 </div>
