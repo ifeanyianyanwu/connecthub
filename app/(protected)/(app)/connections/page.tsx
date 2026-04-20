@@ -20,14 +20,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  Search,
-  Users,
-  MessageCircle,
-  UserMinus,
-  Clock,
-  Loader2,
-} from "lucide-react";
+import { Search, Users, MessageCircle, UserMinus, Clock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
@@ -35,6 +28,7 @@ import { toast } from "sonner";
 import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { Connection, Profile } from "@/lib/types";
 import { sendConnectionAcceptedNotification } from "@/app/actions/notify";
+import { Loading } from "@/components/loading";
 
 export default function ConnectionsPage() {
   const router = useRouter();
@@ -207,11 +201,7 @@ export default function ConnectionsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <Loading />;
   }
 
   return (

@@ -45,9 +45,9 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Pulls the live count from the shared hook — keeps the badge in the header
+  // in sync when we mark items as read inside the panel.
   const unreadCount = useUnreadNotifications();
-
-  // const unreadCount = notifications.filter((n) => !n.read).length;
 
   // ── Fetch notifications ──────────────────────────────────────────────────
 
@@ -80,14 +80,14 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     };
   }, [fetchNotifications]);
 
-  // ── Real-time: new notifications pushed while panel is open ─────────────
+  // ── Real-time: push new notifications while panel is open ────────────────
 
   useEffect(() => {
     if (!user?.id) return;
     const supabase = createClient();
 
     const channel = supabase
-      .channel(`notifications:user:${user.id}`)
+      .channel(`notifications-panel:${user.id}`)
       .on(
         "postgres_changes",
         {
@@ -110,26 +110,22 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
   // ── Mark single notification as read ────────────────────────────────────
 
   const markAsRead = async (id: string) => {
-    // Optimistic update
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
     const supabase = createClient();
-
     await supabase
       .from("notifications")
       .update({ read: true })
       .eq("id", id)
-      .eq("user_id", user!.id); // RLS guard
+      .eq("user_id", user!.id);
   };
 
   // ── Mark all as read ─────────────────────────────────────────────────────
 
   const markAllAsRead = async () => {
-    // Optimistic update
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     const supabase = createClient();
-
     await supabase
       .from("notifications")
       .update({ read: true })
@@ -140,47 +136,66 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-border p-4">
+    // flex column that fills whatever height its Sheet container gives it
+    <div className="flex h-full flex-col bg-background">
+      {/* ── Header ── */}
+      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
-          <Bell className="h-5 w-5" />
-          <h2 className="text-lg font-semibold">Notifications</h2>
+          <Bell className="h-4 w-4 text-foreground" />
+          <h2 className="text-sm font-semibold">Notifications</h2>
           {unreadCount > 0 && (
-            <span className="rounded-full bg-foreground px-2 py-0.5 text-xs text-background">
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground px-1.5 text-xs font-medium text-background">
               {unreadCount}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-1">
           {unreadCount > 0 && (
-            <Button variant="ghost" size="sm" onClick={markAllAsRead}>
-              <Check className="mr-1 h-4 w-4" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1.5 text-xs"
+              onClick={markAllAsRead}
+            >
+              <Check className="h-3 w-3" />
               Mark all read
             </Button>
           )}
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-5 w-5" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
             <span className="sr-only">Close</span>
           </Button>
         </div>
       </div>
 
-      {/* Body */}
-      <ScrollArea className="flex-1">
+      {/* ── Body ── */}
+      {/* ScrollArea fills remaining height — critical on mobile where
+          the Sheet is 100vh and the header/footer are fixed-height. */}
+      <ScrollArea className="flex-1 overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-12">
+          <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : notifications.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <Bell className="mb-4 h-12 w-12 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              No notifications yet
-            </p>
+          <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+              <Bell className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">All caught up</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                You have no notifications yet
+              </p>
+            </div>
           </div>
         ) : (
-          <div className="divide-y divide-border">
+          <div>
             {notifications.map((notification) => {
               const Icon = iconMap[notification.type] ?? Bell;
               return (
@@ -190,38 +205,48 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
                     !notification.read && markAsRead(notification.id)
                   }
                   className={cn(
-                    "flex w-full items-start gap-3 p-4 text-left transition-colors hover:bg-muted",
-                    !notification.read && "bg-muted/50",
+                    "flex w-full items-start gap-3 border-b border-border/50 px-4 py-3.5 text-left transition-colors last:border-0 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                    !notification.read && "bg-muted/30",
                   )}
                 >
+                  {/* Icon circle */}
                   <div
                     className={cn(
-                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
-                      notification.read ? "bg-muted" : "bg-foreground",
+                      "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                      notification.read
+                        ? "bg-muted text-muted-foreground"
+                        : "bg-foreground text-background",
                     )}
                   >
-                    <Icon
+                    <Icon className="h-4 w-4" />
+                  </div>
+
+                  {/* Text */}
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <p
                       className={cn(
-                        "h-5 w-5",
-                        notification.read
-                          ? "text-muted-foreground"
-                          : "text-background",
+                        "text-sm leading-snug",
+                        !notification.read && "font-medium",
                       )}
-                    />
-                  </div>
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium">{notification.title}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {notification.message}
+                    >
+                      {notification.title}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(notification.created_at!), {
-                        addSuffix: true,
-                      })}
+                    {notification.message && (
+                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                        {notification.message}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground/70">
+                      {notification.created_at &&
+                        formatDistanceToNow(new Date(notification.created_at), {
+                          addSuffix: true,
+                        })}
                     </p>
                   </div>
+
+                  {/* Unread dot */}
                   {!notification.read && (
-                    <div className="h-2 w-2 shrink-0 rounded-full bg-foreground" />
+                    <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
                   )}
                 </button>
               );

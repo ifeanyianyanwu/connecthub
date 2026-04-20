@@ -28,6 +28,7 @@ import { Tables } from "@/lib/database.types";
 import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { PostCard } from "@/components/post-card";
 import { useHandleMediaUpload } from "@/hooks/use-handle-media-upload";
+import { Loading } from "@/components/loading";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -390,11 +391,7 @@ export default function CommunityDetailPage() {
   // ─── Loading / Not found states ──────────────────────────────────────────
 
   if (loading) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
-      </div>
-    );
+    <Loading />;
   }
 
   if (!community) {

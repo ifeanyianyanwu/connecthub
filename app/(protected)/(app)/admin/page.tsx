@@ -57,7 +57,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Tables } from "@/lib/database.types";
 import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
-import Loading from "./loading";
+import { Loading } from "@/components/loading";
 import { useCurrentUser } from "@/components/providers/current-user-provider";
 import Image from "next/image";
 
@@ -378,11 +378,7 @@ function AdminContent() {
   // ─── Guard states ─────────────────────────────────────────────────────────
 
   if (isAdmin === null) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <Loading />;
   }
 
   if (!isAdmin) return <AccessDenied />;

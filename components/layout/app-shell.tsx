@@ -7,7 +7,6 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,6 +43,37 @@ const navigation = [
   { name: "Communities", href: "/communities", icon: Users },
 ];
 
+// ─── Bell button with badge ───────────────────────────────────────────────────
+// Extracted to avoid repeating the same JSX twice (mobile header + desktop header).
+
+function BellButton({ unreadCount }: { unreadCount: number }) {
+  return (
+    <div className="relative">
+      <Bell className="h-5 w-5" />
+      {unreadCount > 0 && (
+        <>
+          {/* Number badge — visible when there are 1–99 unread items */}
+          <span
+            className={cn(
+              "absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-0.5 text-[10px] font-semibold leading-none text-white ring-2 ring-background",
+              unreadCount > 99 && "min-w-5",
+            )}
+          >
+            {unreadCount > 99 ? "99+" : unreadCount}
+          </span>
+        </>
+      )}
+      <span className="sr-only">
+        {unreadCount > 0
+          ? `${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}`
+          : "Notifications"}
+      </span>
+    </div>
+  );
+}
+
+// ─── AppShell ─────────────────────────────────────────────────────────────────
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -61,11 +91,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isAdmin = user?.profile?.is_admin;
 
   const searchParams = useSearchParams();
-  const convsersation = searchParams.get("conversation");
+  const conversation = searchParams.get("conversation");
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Desktop Sidebar */}
+      {/* ── Desktop Sidebar ── */}
       <aside className="fixed inset-y-0 left-0 z-50 hidden w-64 border-r border-border bg-card lg:block">
         <div className="flex h-full flex-col">
           {/* Logo */}
@@ -163,7 +193,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Mobile Header */}
+      {/* ── Mobile Header ── */}
       <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border bg-card px-4 lg:hidden">
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
           <SheetTrigger asChild>
@@ -284,65 +314,51 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </Link>
 
-        <div className="flex items-center gap-2">
-          <Sheet open={notificationOpen} onOpenChange={setNotificationOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
-                {unreadCount > 0 && (
-                  <Badge className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 text-xs">
-                    {unreadCount}
-                  </Badge>
-                )}
-                <span className="sr-only">Notifications</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent
-              side="right"
-              className="w-full max-w-md p-0"
-              showCloseButton={false}
-            >
-              <NotificationPanel onClose={() => setNotificationOpen(false)} />
-            </SheetContent>
-          </Sheet>
-        </div>
+        <Sheet open={notificationOpen} onOpenChange={setNotificationOpen}>
+          <SheetTrigger asChild>
+            {/* wrapper div keeps the badge positioned relative to the icon */}
+            <Button variant="ghost" size="icon" className="relative">
+              <BellButton unreadCount={unreadCount} />
+            </Button>
+          </SheetTrigger>
+          {/* Full-screen on mobile for comfortable reading */}
+          <SheetContent
+            side="right"
+            className="w-full p-0 sm:max-w-sm"
+            showCloseButton={false}
+          >
+            <NotificationPanel onClose={() => setNotificationOpen(false)} />
+          </SheetContent>
+        </Sheet>
       </header>
 
-      {/* Desktop Header */}
+      {/* ── Desktop Header ── */}
       <header className="sticky top-0 z-40 hidden h-16 items-center justify-end border-b border-border bg-card px-6 lg:ml-64 lg:flex">
-        <div className="flex items-center gap-4">
-          <Sheet open={notificationOpen} onOpenChange={setNotificationOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
-                {unreadCount > 0 && (
-                  <Badge className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 text-xs">
-                    {unreadCount}
-                  </Badge>
-                )}
-                <span className="sr-only">Notifications</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent
-              side="right"
-              className="w-full max-w-md p-0"
-              showCloseButton={false}
-            >
-              <NotificationPanel onClose={() => setNotificationOpen(false)} />
-            </SheetContent>
-          </Sheet>
-        </div>
+        <Sheet open={notificationOpen} onOpenChange={setNotificationOpen}>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon" className="relative">
+              <BellButton unreadCount={unreadCount} />
+            </Button>
+          </SheetTrigger>
+          <SheetContent
+            side="right"
+            className="w-full max-w-sm p-0"
+            showCloseButton={false}
+          >
+            <NotificationPanel onClose={() => setNotificationOpen(false)} />
+          </SheetContent>
+        </Sheet>
       </header>
 
-      {/* Main Content */}
+      {/* ── Main Content ── */}
       <main className="lg:ml-64">
         <div className="min-h-[calc(100vh-4rem)]">{children}</div>
       </main>
 
-      {/* Mobile Bottom Navigation */}
+      {/* ── Mobile Bottom Navigation ── */}
       <nav
         className={cn(
-          convsersation
+          conversation
             ? "hidden"
             : "fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card lg:hidden",
         )}
