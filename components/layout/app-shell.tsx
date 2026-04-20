@@ -26,7 +26,6 @@ import {
   Menu,
   UserCircle,
   Shield,
-  X,
   EllipsisVertical,
 } from "lucide-react";
 
@@ -217,13 +216,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </div>
                   <span className="text-lg font-semibold">ConnectHub</span>
                 </Link>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <X className="h-5 w-5" />
-                </Button>
               </div>
               <nav className="flex-1 space-y-1 px-3 py-4">
                 {navigation.map((item) => {

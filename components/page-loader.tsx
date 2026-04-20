@@ -23,7 +23,7 @@ export function PageLoader({ fullPage = true, className }: PageLoaderProps) {
       {/* Animated logo mark */}
       <div className="relative flex h-12 w-12 items-center justify-center">
         {/* Outer ring pulse */}
-        <span className="absolute inset-0 rounded-full border-2 border-foreground/10 animate-ping" />
+        {/* <span className="absolute inset-0 rounded-full border-2 border-foreground/10 animate-ping" /> */}
         {/* Inner logo */}
         {/* <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground shadow-sm">
           <span className="text-sm font-bold tracking-tight text-background select-none">

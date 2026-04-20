@@ -12,9 +12,9 @@ import {
   MessageCircle,
   Heart,
   Users,
-  Check,
   X,
   Loader2,
+  CheckCheck as DoubleCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCurrentUser } from "@/components/providers/current-user-provider";
@@ -142,7 +142,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <Bell className="h-4 w-4 text-foreground" />
-          <h2 className="text-sm font-semibold">Notifications</h2>
+          <h2 className="text-xs md:text-sm font-semibold">Notifications</h2>
           {unreadCount > 0 && (
             <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground px-1.5 text-xs font-medium text-background">
               {unreadCount}
@@ -158,8 +158,8 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
               className="h-8 gap-1.5 text-xs"
               onClick={markAllAsRead}
             >
-              <Check className="h-3 w-3" />
-              Mark all read
+              <DoubleCheck className="h-3 w-3" />
+              <span className="hidden md:block">Mark all read</span>
             </Button>
           )}
           <Button
