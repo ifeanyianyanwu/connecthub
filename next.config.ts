@@ -21,6 +21,11 @@ const nextConfig: NextConfig = {
         hostname: "rrawqwnupvlfonteiyrt.supabase.co",
         port: "",
       },
+      {
+        protocol: "https",
+        hostname: "picsum.photos",
+        port: "",
+      },
     ],
   },
   async headers() {

@@ -59,6 +59,7 @@ export type Database = {
           created_at: string | null
           created_by: string
           description: string | null
+          hobby_embedding: string | null
           id: string
           image_url: string | null
           name: string
@@ -69,6 +70,7 @@ export type Database = {
           created_at?: string | null
           created_by: string
           description?: string | null
+          hobby_embedding?: string | null
           id?: string
           image_url?: string | null
           name: string
@@ -79,6 +81,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string
           description?: string | null
+          hobby_embedding?: string | null
           id?: string
           image_url?: string | null
           name?: string
@@ -90,6 +93,42 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_hobbies: {
+        Row: {
+          community_id: string
+          created_at: string
+          hobby_id: string
+          id: string
+        }
+        Insert: {
+          community_id: string
+          created_at?: string
+          hobby_id: string
+          id?: string
+        }
+        Update: {
+          community_id?: string
+          created_at?: string
+          hobby_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_hobbies_community_id_fkey"
+            columns: ["community_id"]
+            isOneToOne: false
+            referencedRelation: "communities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_hobbies_hobby_id_fkey"
+            columns: ["hobby_id"]
+            isOneToOne: false
+            referencedRelation: "hobbies"
             referencedColumns: ["id"]
           },
         ]
@@ -556,6 +595,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_community_recommendations: {
+        Args: { query_user_id: string }
+        Returns: {
+          ai_match_score: number
+          category: string
+          created_at: string
+          description: string
+          exact_match_score: number
+          id: string
+          image_url: string
+          member_count: number
+          name: string
+          shared_hobbies: string[]
+          shared_hobby_count: number
+          total_score: number
+        }[]
+      }
       get_user_conversations: {
         Args: { user_id: string }
         Returns: {
