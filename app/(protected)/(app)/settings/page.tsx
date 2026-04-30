@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -51,7 +51,6 @@ import { PushNotificationToggle } from "@/components/push-notification-toggle";
 import { useCurrentUserHobbies } from "@/hooks/use-current-user-hobbies";
 import { useUsernameCheck } from "@/hooks/use-username-check";
 import { toast } from "sonner";
-import { softDeleteAccount } from "@/app/actions/account";
 
 type ProfileData = {
   name: string;
@@ -79,9 +78,6 @@ export default function SettingsPage() {
   const [hobbiesState, setHobbiesState] = useState<Hobby[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-
-  const [isDeleting, startDeleteTransition] = useTransition();
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   const [profileData, setProfileData] = useState<ProfileData>(
     {} as ProfileData,
@@ -692,57 +688,18 @@ export default function SettingsPage() {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete your account?</AlertDialogTitle>
-                    <AlertDialogDescription asChild>
-                      <div className="space-y-3">
-                        <p>
-                          Your account will be{" "}
-                          <strong>scheduled for deletion in 30 days</strong>.
-                          During this period you will not be able to log in.
-                          After 30 days, your profile, messages, posts, and
-                          connections will be permanently removed.
-                        </p>
-                        <p>
-                          Type <strong>delete my account</strong> to confirm.
-                        </p>
-                        <Input
-                          value={deleteConfirmText}
-                          onChange={(e) => setDeleteConfirmText(e.target.value)}
-                          placeholder="delete my account"
-                          className="mt-2"
-                        />
-                      </div>
+                    <AlertDialogTitle>
+                      Are you absolutely sure?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone. This will permanently delete
+                      your account and remove your data from our servers.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel onClick={() => setDeleteConfirmText("")}>
-                      Cancel
-                    </AlertDialogCancel>
-                    <AlertDialogAction
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      disabled={
-                        deleteConfirmText !== "delete my account" || isDeleting
-                      }
-                      onClick={() => {
-                        startDeleteTransition(async () => {
-                          try {
-                            await softDeleteAccount();
-                          } catch {
-                            toast.error(
-                              "Failed to delete account. Please try again.",
-                            );
-                          }
-                        });
-                      }}
-                    >
-                      {isDeleting ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Deleting…
-                        </>
-                      ) : (
-                        "Delete my account"
-                      )}
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Delete Account
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>

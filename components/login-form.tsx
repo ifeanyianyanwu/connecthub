@@ -13,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { MailCheck, Loader2, RefreshCw } from "lucide-react";
@@ -26,10 +26,6 @@ export function LoginForm({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-
-  const searchParams = useSearchParams();
-  const isDeletionPending =
-    searchParams.get("message") === "account-deletion-scheduled";
 
   // Email confirmation states
   const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
@@ -159,14 +155,7 @@ export function LoginForm({
             </CardContent>
           </Card>
         )}
-        {isDeletionPending && (
-          <Alert>
-            <AlertDescription>
-              Your account has been scheduled for deletion. You have 30 days to
-              contact support if you change your mind.
-            </AlertDescription>
-          </Alert>
-        )}
+
         <Card>
           <CardHeader className="space-y-1">
             <CardTitle className="text-xl">Sign in</CardTitle>

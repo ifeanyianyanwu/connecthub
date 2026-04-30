@@ -1,13 +1,13 @@
 "use server";
 
-import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
 // ─── Auth helper ──────────────────────────────────────────────────────────────
 
 async function requireAdmin() {
-  const adminSupabase = createAdminClient();
-  const supabase = await createClient();
+  const supabase = createAdminClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -22,7 +22,7 @@ async function requireAdmin() {
 
   if (!profile?.is_admin) throw new Error("Forbidden");
 
-  return { supabase: adminSupabase, userId: user.id };
+  return { supabase, userId: user.id };
 }
 
 // ─── Reports ──────────────────────────────────────────────────────────────────
