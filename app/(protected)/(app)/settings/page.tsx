@@ -670,42 +670,6 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Danger Zone</CardTitle>
-              <CardDescription>
-                Irreversible actions for your account
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" className="w-full sm:w-auto">
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Account
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      Are you absolutely sure?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete
-                      your account and remove your data from our servers.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                      Delete Account
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
     </div>
