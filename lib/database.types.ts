@@ -410,6 +410,7 @@ export type Database = {
           bio: string | null
           community_alerts: boolean | null
           created_at: string | null
+          deleted_at: string | null
           display_name: string | null
           email: string | null
           email_notifications: boolean | null
@@ -429,6 +430,7 @@ export type Database = {
           bio?: string | null
           community_alerts?: boolean | null
           created_at?: string | null
+          deleted_at?: string | null
           display_name?: string | null
           email?: string | null
           email_notifications?: boolean | null
@@ -448,6 +450,7 @@ export type Database = {
           bio?: string | null
           community_alerts?: boolean | null
           created_at?: string | null
+          deleted_at?: string | null
           display_name?: string | null
           email?: string | null
           email_notifications?: boolean | null
