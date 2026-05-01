@@ -7,6 +7,7 @@ ConnectHub is a modern social platform that helps users discover and connect wit
 ## Features
 
 ### Core Social Features
+
 - **User Authentication** - Secure sign-up, login, and password management with email verification
 - **User Profiles** - Customizable profiles with display names, avatars, bios, and interest/hobby tags
 - **Connection System** - Send and manage connection requests with real-time notifications
@@ -15,6 +16,7 @@ ConnectHub is a modern social platform that helps users discover and connect wit
 - **Home Feed** - Personalized activity feed based on connections and interests
 
 ### Technical Features
+
 - **Push Notifications** - Real-time web push notifications for connection requests, messages, and community events
 - **Offline Support** - Progressive Web App (PWA) with offline functionality via Service Worker
 - **Dark Mode** - Built-in theme switching support for better user experience
@@ -25,6 +27,7 @@ ConnectHub is a modern social platform that helps users discover and connect wit
 ## Tech Stack
 
 ### Frontend
+
 - **Next.js 16** - Modern React framework with App Router and SSR
 - **React 19** - Latest React with concurrent features
 - **TypeScript** - Type-safe JavaScript for better developer experience
@@ -34,15 +37,18 @@ ConnectHub is a modern social platform that helps users discover and connect wit
 - **Lucide React** - Beautiful icon library
 
 ### Backend & Database
+
 - **Supabase** - PostgreSQL database, authentication, and real-time capabilities
 - **Next.js API Routes** - Serverless functions for API endpoints
 - **Server Actions** - Next.js Server Actions for mutations and side effects
 
 ### PWA & Offline
+
 - **Serwist** - Next.js-integrated Service Worker with caching strategies
 - **Web Push API** - Native push notifications support
 
 ### Development & Quality
+
 - **ESLint** - Code quality and style enforcement
 - **Turbopack** - Lightning-fast build tool for development
 - **tsx** - TypeScript executor for scripts
@@ -50,6 +56,7 @@ ConnectHub is a modern social platform that helps users discover and connect wit
 ## Getting Started
 
 ### Prerequisites
+
 - Node.js 18+ and npm/yarn
 - Supabase account (free tier available)
 - Environment variables configured
@@ -71,22 +78,26 @@ GOOGLE_API_KEY=your_google_api_key
 ### Installation
 
 1. Clone the repository:
+
 ```bash
 git clone <repository-url>
 cd connecthub
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 ```
 
 3. Seed development data (optional):
+
 ```bash
 npm run seed
 ```
 
 4. Start the development server:
+
 ```bash
 npm run dev
 ```
@@ -187,6 +198,7 @@ ConnectHub supports real-time push notifications through:
 4. **Offline Queuing** - Notifications are queued and sent when online
 
 ### Push Events
+
 - Connection request received
 - Connection request accepted
 - New message received
@@ -206,15 +218,19 @@ Unsaved form data is preserved when going offline, and syncs when connectivity i
 ## Customization
 
 ### Theme
+
 Edit `components/providers/theme-provider.tsx` to customize color schemes or add new themes.
 
 ### UI Components
+
 All UI components use Shadcn/ui. Customize component styles in `components/ui/`.
 
 ### API Endpoints
+
 Extend API functionality by adding new route files in `app/api/`.
 
 ### Server Actions
+
 Add new server mutations in `app/actions/` for server-side operations.
 
 ## Performance Optimizations
@@ -285,15 +301,18 @@ npm audit
 ## Common Issues
 
 ### Service Worker Not Updating
+
 - Clear browser cache and service workers
 - Check browser DevTools > Application > Service Workers
 
 ### Push Notifications Not Working
+
 - Ensure user has granted permission
 - Check push subscription status in database
 - Verify VAPID keys are configured in Supabase
 
 ### Authentication Issues
+
 - Clear cookies and session storage
 - Verify Supabase credentials in `.env.local`
 - Check Supabase Auth settings for allowed redirect URLs
@@ -313,6 +332,7 @@ This project is part of an educational assignment for "Project and Professionali
 ## Support
 
 For issues or questions:
+
 - Check existing issues and discussions
 - Review code comments for implementation details
 - Consult Next.js and Supabase documentation
