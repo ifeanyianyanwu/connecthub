@@ -518,12 +518,16 @@ export default function CommunityDetailPage() {
                     <Avatar className="h-10 w-10 shrink-0">
                       <AvatarImage
                         src={
-                          user?.user_metadata?.avatar_url || "/placeholder.svg"
+                          user?.profile?.profile_picture || "/placeholder.svg"
                         }
-                        alt={user?.user_metadata?.name}
+                        alt={
+                          user?.profile?.display_name ||
+                          user?.profile?.username ||
+                          "Your profile picture"
+                        }
                       />
                       <AvatarFallback>
-                        {user?.user_metadata?.name?.charAt(0)}
+                        {user?.profile?.display_name?.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
 

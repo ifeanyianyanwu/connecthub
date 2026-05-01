@@ -288,7 +288,7 @@ export default function ConnectionsPage() {
                               size="sm"
                               className="flex-1"
                               onClick={() =>
-                                router.push(`/messages?user=${otherUser.id}`)
+                                router.push(`/messages?conversation=${otherUser.id}`)
                               }
                             >
                               <MessageCircle className="mr-2 h-3.5 w-3.5" />{" "}
