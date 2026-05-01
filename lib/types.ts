@@ -15,20 +15,3 @@ export type Message = Database["public"]["Tables"]["messages"]["Row"];
 export type ProfileWithUser = Profile & {
   user: User;
 };
-
-export interface Notification {
-  id: string;
-  userId: string;
-  type:
-    | "connection_request"
-    | "connection_accepted"
-    | "message"
-    | "community_invite"
-    | "post_like"
-    | "comment";
-  title: string;
-  message: string;
-  isRead: boolean;
-  createdAt: string;
-  data?: Record<string, unknown>;
-}

@@ -1,8 +1,3 @@
-// lib/server/send-push.ts
-// Server-only — never import this from a client component.
-// Uses web-push directly rather than calling /api/push/send via HTTP,
-// which would be a self-request and adds unnecessary latency.
-
 import webPush from "web-push";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,8 +16,6 @@ type PushPayload = {
 /**
  * Fetches all push subscriptions for a user and sends a notification to
  * each one. Automatically prunes expired subscriptions (HTTP 410 responses).
- *
- * Safe to call even if the user has no subscriptions — returns 0 in that case.
  */
 export async function sendPushToUser(
   userId: string,
@@ -58,7 +51,6 @@ export async function sendPushToUser(
   );
 
   // HTTP 410 = subscription has expired or user revoked permission.
-  // Clean these up so we don't keep sending to dead endpoints.
   const expiredEndpoints = subscriptions
     .filter((_, i) => {
       const result = results[i];

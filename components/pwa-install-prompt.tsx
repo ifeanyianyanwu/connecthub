@@ -1,4 +1,3 @@
-// components/pwa-install-prompt.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -7,8 +6,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Download, X } from "lucide-react";
 import Image from "next/image";
 
-// The browser fires this event before showing the install prompt.
-// We intercept it to show our own UI.
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
@@ -63,7 +60,7 @@ export function PwaInstallPrompt() {
       <Card className="border-border shadow-lg">
         <CardContent className="flex items-center gap-3 py-4">
           <Image
-            src="/icons/icon-72x72.png"
+            src="/icon1.png"
             alt="ConnectHub"
             className="h-12 w-12 rounded-xl shrink-0"
             width={100}

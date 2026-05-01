@@ -1,12 +1,3 @@
-// app/api/communities/[id]/update-embedding/route.ts
-//
-// Generates a Gemini text embedding for a community and stores it in
-// communities.hobby_embedding. Called:
-//   • After community creation (from the communities page action)
-//   • After community details / hobby tags are updated
-//
-// Security: only members with the 'admin' role on the community may call this.
-
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";

@@ -90,16 +90,13 @@ export function PostCard({
   post: Post;
   currentUserId?: string;
   currentUserProfile?: Profile | null;
-  /** Called after the post is successfully deleted so the parent can remove it from the list. */
   onDelete?: (postId: string) => void;
 }) {
   const isOwnPost = post.user_id === currentUserId;
 
-  // ── Local like state (self-contained, initialised from prop) ─────────────
   const [likeCount, setLikeCount] = useState(() => post.likes[0]?.count ?? 0);
   const [isLiked, setIsLiked] = useState(() => post.isLiked);
 
-  // ── Comment state ─────────────────────────────────────────────────────────
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
@@ -110,20 +107,16 @@ export function PostCard({
     post.comments[0]?.count ?? 0,
   );
 
-  // ── Delete state ──────────────────────────────────────────────────────────
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingPost, setDeletingPost] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // ── Report state ──────────────────────────────────────────────────────────
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportDescription, setReportDescription] = useState("");
   const [submittingReport, setSubmittingReport] = useState(false);
   const [reportSubmitted, setReportSubmitted] = useState(false);
 
-  // Refs so the realtime handler can always see the latest values without
-  // needing to be recreated when state changes.
   const commentsFetchedRef = useRef(false);
   const commentsRef = useRef<Comment[]>([]);
 

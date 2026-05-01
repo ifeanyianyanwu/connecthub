@@ -1,13 +1,6 @@
-// app/api/push/subscribe/route.ts
-// Saves or removes a push subscription for the current user.
-// Called by PushNotificationToggle when the user enables/disables notifications.
-
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-// The shape the browser serialises a PushSubscription to when sent via JSON.
-// Using our own type rather than the browser's PushSubscription class, which
-// is a DOM type and doesn't exist in the Node.js API route context.
 type PushSubscriptionBody = {
   endpoint: string;
   keys: {
@@ -26,8 +19,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // req.json() returns a plain object — not a PushSubscription instance,
-  // so .toJSON() must not be called on it.
   const { endpoint, keys }: PushSubscriptionBody = await req.json();
 
   if (!endpoint || !keys?.p256dh || !keys?.auth) {

@@ -13,8 +13,6 @@ export function PushNotificationToggle() {
   const { user } = useCurrentUser();
 
   useEffect(() => {
-    // Push notifications require both ServiceWorker and PushManager support.
-    // Not available in all browsers (e.g. iOS Safari < 16.4).
     const isSupported = "serviceWorker" in navigator && "PushManager" in window;
     setSupported(isSupported);
 
@@ -120,11 +118,6 @@ export function PushNotificationToggle() {
 
   return (
     <div className="flex items-center justify-between">
-      {/* <Switch
-        checked={enabled}
-        onCheckedChange={handleToggle}
-        disabled={loading}
-      /> */}
       <Switch
         id="push-toggle"
         checked={enabled}

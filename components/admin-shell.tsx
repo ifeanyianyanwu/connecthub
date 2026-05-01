@@ -135,12 +135,9 @@ interface Props {
   initialData: AdminInitialData;
 }
 
-// ─── Shell ────────────────────────────────────────────────────────────────────
-
 export function AdminShell({ initialData }: Props) {
   const [isPending, startTransition] = useTransition();
 
-  // Local copies that mutate optimistically while server action runs
   const [stats, setStats] = useState<Stats>(initialData.stats);
   const [reports, setReports] = useState<Report[]>(initialData.reports);
   const [users] = useState<Profile[]>(initialData.users);
@@ -155,10 +152,7 @@ export function AdminShell({ initialData }: Props) {
   const [communitySearch, setCommunitySearch] = useState("");
   const [postSearch, setPostSearch] = useState("");
 
-  // ── Report actions ─────────────────────────────────────────────────────────
-
   const handleResolveReport = (reportId: string) => {
-    // Optimistic
     setReports((prev) =>
       prev.map((r) => (r.id === reportId ? { ...r, status: "resolved" } : r)),
     );
@@ -200,13 +194,9 @@ export function AdminShell({ initialData }: Props) {
     });
   };
 
-  // ── Delete post ────────────────────────────────────────────────────────────
-
   const handleDeletePost = (postId: string, reportId?: string) => {
-    // Optimistic — remove post from list
     setPosts((prev) => prev.filter((p) => p.id !== postId));
 
-    // If called from the reports panel, also resolve that report
     if (reportId) {
       setReports((prev) =>
         prev.map((r) => (r.id === reportId ? { ...r, status: "resolved" } : r)),
@@ -233,8 +223,6 @@ export function AdminShell({ initialData }: Props) {
     });
   };
 
-  // ── Delete community ───────────────────────────────────────────────────────
-
   const handleDeleteCommunity = (communityId: string) => {
     setCommunities((prev) => prev.filter((c) => c.id !== communityId));
     setStats((prev) => ({
@@ -253,8 +241,6 @@ export function AdminShell({ initialData }: Props) {
       }
     });
   };
-
-  // ── Filtered derived state ─────────────────────────────────────────────────
 
   const filteredReports = useMemo(() => {
     if (reportFilter === "all") return reports;
@@ -296,8 +282,6 @@ export function AdminShell({ initialData }: Props) {
       ),
     [posts, postSearch],
   );
-
-  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 pb-20 lg:pb-6">

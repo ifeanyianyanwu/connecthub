@@ -7,13 +7,6 @@ type UsernameCheckState = {
   isAvailable: boolean;
 };
 
-/**
- * Debounced hook that checks whether a username is already taken.
- *
- * Pass `currentUserId` to exclude the current user's own profile from the
- * check — important on edit pages where the user may re-save their existing
- * username and it should not be flagged as taken.
- */
 export function useUsernameCheck(
   username: string,
   currentUserId?: string,

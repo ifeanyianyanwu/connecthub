@@ -20,8 +20,6 @@ import { cn } from "@/lib/utils";
 import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 type Notification = Tables<"notifications">;
 
 const iconMap: Record<string, React.ElementType> = {
@@ -37,19 +35,13 @@ interface NotificationPanelProps {
   onClose: () => void;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 export function NotificationPanel({ onClose }: NotificationPanelProps) {
   const { user } = useCurrentUser();
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Pulls the live count from the shared hook — keeps the badge in the header
-  // in sync when we mark items as read inside the panel.
   const unreadCount = useUnreadNotifications();
-
-  // ── Fetch notifications ──────────────────────────────────────────────────
 
   const fetchNotifications = useCallback(async () => {
     if (!user?.id) return;
@@ -80,8 +72,6 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     };
   }, [fetchNotifications]);
 
-  // ── Real-time: push new notifications while panel is open ────────────────
-
   useEffect(() => {
     if (!user?.id) return;
     const supabase = createClient();
@@ -107,8 +97,6 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
     };
   }, [user?.id]);
 
-  // ── Mark single notification as read ────────────────────────────────────
-
   const markAsRead = async (id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
@@ -121,8 +109,6 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
       .eq("user_id", user!.id);
   };
 
-  // ── Mark all as read ─────────────────────────────────────────────────────
-
   const markAllAsRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     const supabase = createClient();
@@ -133,10 +119,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
       .eq("read", false);
   };
 
-  // ─── Render ───────────────────────────────────────────────────────────────
-
   return (
-    // flex column that fills whatever height its Sheet container gives it
     <div className="flex h-full flex-col bg-background">
       {/* ── Header ── */}
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
@@ -175,8 +158,7 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
       </div>
 
       {/* ── Body ── */}
-      {/* ScrollArea fills remaining height — critical on mobile where
-          the Sheet is 100vh and the header/footer are fixed-height. */}
+
       <ScrollArea className="flex-1 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16">

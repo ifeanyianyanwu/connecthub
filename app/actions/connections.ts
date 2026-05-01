@@ -1,7 +1,3 @@
-// app/actions/connections.ts
-// Example Server Actions showing how notifyUser integrates with real operations.
-// The pattern is the same for messages, likes, and comments.
-
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
@@ -39,8 +35,6 @@ export async function sendConnectionRequest(targetUserId: string) {
   const actorName = profile?.display_name ?? profile?.username ?? "Someone";
 
   // 3. Notify — inserts into notifications table + sends push.
-  //    Fire-and-forget: a notification failure should never surface as a
-  //    user-facing error on the connection request itself.
   notifyConnectionRequest(targetUserId, user.id, actorName).catch(
     console.error,
   );

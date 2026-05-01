@@ -42,16 +42,12 @@ const navigation = [
   { name: "Communities", href: "/communities", icon: Users },
 ];
 
-// ─── Bell button with badge ───────────────────────────────────────────────────
-// Extracted to avoid repeating the same JSX twice (mobile header + desktop header).
-
 function BellButton({ unreadCount }: { unreadCount: number }) {
   return (
     <div className="relative">
       <Bell className="h-5 w-5" />
       {unreadCount > 0 && (
         <>
-          {/* Number badge — visible when there are 1–99 unread items */}
           <span
             className={cn(
               "absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-0.5 text-[10px] font-semibold leading-none text-white ring-2 ring-background",
@@ -70,8 +66,6 @@ function BellButton({ unreadCount }: { unreadCount: number }) {
     </div>
   );
 }
-
-// ─── AppShell ─────────────────────────────────────────────────────────────────
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -308,12 +302,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <Sheet open={notificationOpen} onOpenChange={setNotificationOpen}>
           <SheetTrigger asChild>
-            {/* wrapper div keeps the badge positioned relative to the icon */}
             <Button variant="ghost" size="icon" className="relative">
               <BellButton unreadCount={unreadCount} />
             </Button>
           </SheetTrigger>
-          {/* Full-screen on mobile for comfortable reading */}
           <SheetContent
             side="right"
             className="w-full p-0 sm:max-w-sm"
