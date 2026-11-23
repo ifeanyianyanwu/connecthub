@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { sendPushToUser } from "./push";
 
 type NotificationType =
@@ -29,7 +29,9 @@ export async function notifyUser({
   // Never notify users of their own actions
   if (recipientId === actorId) return;
 
-  const supabase = await createClient();
+  // Service-role client: writes a row owned by another user. Callers must
+  // verify the actor and event first (see app/actions/notify.ts).
+  const supabase = createAdminClient();
 
   // Insert the in-app notification row (shown in NotificationPanel)
   const { error } = await supabase.from("notifications").insert({

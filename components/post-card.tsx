@@ -239,12 +239,7 @@ export function PostCard({
       }
 
       // Send notification (fire-and-forget)
-      sendPostLikedNotification(
-        post.user_id,
-        currentUserId,
-        currentUserProfile?.display_name || "",
-        post.community_id,
-      ).catch(console.error);
+      sendPostLikedNotification(post.id).catch(console.error);
     } else {
       const { error } = await supabase
         .from("likes")
@@ -311,12 +306,7 @@ export function PostCard({
       setCommentCount((n) => n + 1);
       setNewComment("");
 
-      sendNewCommentNotification(
-        post.user_id,
-        currentUserId,
-        currentUserProfile?.display_name || "",
-        post.community_id,
-      ).catch(console.error);
+      sendNewCommentNotification(data.id).catch(console.error);
     }
     setSubmittingComment(false);
   };

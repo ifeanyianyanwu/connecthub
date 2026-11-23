@@ -1,5 +1,5 @@
 import webPush from "web-push";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 
 webPush.setVapidDetails(
   process.env.VAPID_SUBJECT!,
@@ -21,7 +21,9 @@ export async function sendPushToUser(
   userId: string,
   payload: PushPayload,
 ): Promise<number> {
-  const supabase = await createClient();
+  // Service-role client: reads another user's subscriptions and prunes
+  // expired ones. Never expose this function to the client directly.
+  const supabase = createAdminClient();
 
   const { data: subscriptions, error } = await supabase
     .from("push_subscriptions")
@@ -33,8 +35,8 @@ export async function sendPushToUser(
   const message = JSON.stringify({
     title: payload.title,
     body: payload.body,
-    icon: "/icons/icon-192x192.png",
-    badge: "/icons/icon-72x72.png",
+    icon: "/web-app-manifest-192x192.png",
+    badge: "/icon1.png",
     url: payload.url ?? "/",
   });
 

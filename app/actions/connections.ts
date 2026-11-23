@@ -58,12 +58,15 @@ export async function acceptConnectionRequest(connectionId: string) {
     .single();
 
   if (fetchError || !connection) throw new Error("Connection not found");
+  if (connection.user2_id !== user.id) throw new Error("Forbidden");
 
   // 2. Update status to accepted
   const { error } = await supabase
     .from("connections")
     .update({ status: "accepted" })
-    .eq("id", connectionId);
+    .eq("id", connectionId)
+    .eq("user2_id", user.id)
+    .eq("status", "pending");
 
   if (error) throw new Error(error.message);
 
