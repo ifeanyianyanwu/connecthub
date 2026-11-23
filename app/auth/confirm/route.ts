@@ -19,7 +19,11 @@ export async function GET(request: NextRequest) {
       if (url.origin === origin) {
         next = url.pathname + url.search;
       }
-    } else if (_next.startsWith("/")) {
+    } else if (
+      _next.startsWith("/") &&
+      !_next.startsWith("//") &&
+      !_next.startsWith("/\\")
+    ) {
       next = _next;
     }
   } catch (e) {

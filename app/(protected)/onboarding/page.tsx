@@ -31,6 +31,7 @@ import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { Hobby } from "@/lib/types";
 import { useHandleAvatarUpload } from "@/hooks/use-handle-avatar-upload";
 import { useUsernameCheck } from "@/hooks/use-username-check";
+import Image from "next/image";
 
 const steps = [
   {
@@ -204,9 +205,13 @@ export default function OnboardingPage() {
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-4">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground">
-              <span className="text-sm font-bold text-background">CH</span>
-            </div>
+            <Image
+              src="/icon.svg"
+              alt="ConnectHub Logo"
+              width={100}
+              height={100}
+              className="h-8 w-8"
+            />
             <span className="text-lg font-semibold">ConnectHub</span>
           </div>
           <span className="text-sm text-muted-foreground">

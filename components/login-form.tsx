@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { MailCheck, Loader2, RefreshCw } from "lucide-react";
+import Image from "next/image";
 
 export function LoginForm({
   className,
@@ -92,9 +93,14 @@ export function LoginForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <div className="w-full max-w-md space-y-8">
         <div className="flex flex-col items-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-foreground">
-            <span className="text-xl font-bold text-background">CH</span>
-          </div>
+         
+          <Image
+            src="/icon.svg"
+            alt="ConnectHub Logo"
+            width={100}
+            height={100}
+            className="h-12 w-12"
+          />
           <h1 className="mt-4 text-2xl font-bold text-foreground">
             Welcome back
           </h1>

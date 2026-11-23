@@ -148,11 +148,7 @@ export default function DiscoverPage() {
       });
       if (error) throw error;
 
-      sendConnectionRequestNotification(
-        targetUserId,
-        user.id,
-        user.profile?.display_name || "",
-      ).catch(console.error);
+      sendConnectionRequestNotification(targetUserId).catch(console.error);
 
       toast.success(`Connection request sent to ${targetName || "user"}.`);
     } catch (error) {

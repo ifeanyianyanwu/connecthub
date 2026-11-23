@@ -63,7 +63,7 @@ ConnectHub is a modern social platform that helps users discover and connect wit
 
 ### Environment Variables
 
-Create a `.env.local` file in the root directory with the following variables:
+Copy `.env.example` to `.env.local` and fill in:
 
 ```
 # Supabase
@@ -71,8 +71,16 @@ NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=your_supabase_publishable_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
-# Optional: Google GenAI (for recommendation features)
-GOOGLE_API_KEY=your_google_api_key
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+SUPABASE_PROJECT_ID=your_supabase_project_id
+
+# Google GenAI (hobby embeddings for recommendations)
+GOOGLE_GENAI_API_KEY=your_google_api_key
+
+# Web Push (generate with: npx web-push generate-vapid-keys)
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=your_vapid_public_key
+VAPID_PRIVATE_KEY=your_vapid_private_key
+VAPID_SUBJECT=mailto:you@example.com
 ```
 
 ### Installation
@@ -195,7 +203,6 @@ ConnectHub supports real-time push notifications through:
 1. **Service Worker** - Handles push events in the background
 2. **Push Subscriptions** - Users can enable/disable push notifications
 3. **Notification Types** - Connection requests, messages, community events
-4. **Offline Queuing** - Notifications are queued and sent when online
 
 ### Push Events
 
@@ -209,11 +216,12 @@ ConnectHub supports real-time push notifications through:
 
 ConnectHub works offline using a Service Worker with the following caching strategy:
 
-- **API Routes** - Network-first (falls back to cache if offline)
-- **Static Assets** - Cache-first (serves cached version, updates in background)
+- **App API Routes** - Network-only (never served from cache)
 - **Supabase Requests** - Network-only (prevents stale auth/data)
+- **Static Assets** - Serwist defaults (precached app shell, stale-while-revalidate for JS/CSS, cache-first for images)
+- **Offline navigation** - Falls back to the `/offline` page
 
-Unsaved form data is preserved when going offline, and syncs when connectivity is restored.
+The page is not force-reloaded when connectivity returns, so unsaved form input is not wiped. There is no background sync: actions taken while offline fail and must be retried.
 
 ## Customization
 
@@ -247,7 +255,7 @@ Add new server mutations in `app/actions/` for server-side operations.
 - **RLS Policies** - Row-Level Security on database tables
 - **CORS Headers** - X-Content-Type-Options, X-Frame-Options, Referrer-Policy
 - **Environment Variables** - Sensitive keys never exposed to client
-- **Server-Side Validation** - All mutations validated on server
+- **Server-Side Checks** - Notification and admin server actions derive the actor from the session and verify the event before acting
 
 ## Deployment
 
@@ -309,7 +317,7 @@ npm audit
 
 - Ensure user has granted permission
 - Check push subscription status in database
-- Verify VAPID keys are configured in Supabase
+- Verify the VAPID environment variables are set
 
 ### Authentication Issues
 

@@ -34,6 +34,7 @@ import { CurrentUserAvatar } from "../current-user-avatar";
 import { useCurrentUser } from "@/components/providers/current-user-provider";
 import { createClient } from "@/lib/supabase/client";
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
+import Image from "next/image";
 
 const navigation = [
   { name: "Home", href: "/home", icon: Home },
@@ -94,9 +95,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {/* Logo */}
           <div className="flex h-16 items-center border-b border-border px-6">
             <Link href="/home" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground">
-                <span className="text-sm font-bold text-background">CH</span>
-              </div>
+              <Image
+                src="/icon.svg"
+                alt="ConnectHub Logo"
+                width={100}
+                height={100}
+                className="h-8 w-8"
+              />
               <span className="text-lg font-semibold text-foreground">
                 ConnectHub
               </span>
@@ -203,11 +208,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   className="flex items-center gap-2"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground">
-                    <span className="text-sm font-bold text-background">
-                      CH
-                    </span>
-                  </div>
+                  <Image
+                    src="/icon.svg"
+                    alt="ConnectHub Logo"
+                    width={100}
+                    height={100}
+                    className="h-8 w-8"
+                  />
                   <span className="text-lg font-semibold">ConnectHub</span>
                 </Link>
               </div>
@@ -295,9 +302,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Sheet>
 
         <Link href="/home" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground">
-            <span className="text-sm font-bold text-background">CH</span>
-          </div>
+          <Image
+            src="/icon.svg"
+            alt="ConnectHub Logo"
+            width={100}
+            height={100}
+            className="h-8 w-8"
+          />
         </Link>
 
         <Sheet open={notificationOpen} onOpenChange={setNotificationOpen}>

@@ -149,11 +149,7 @@ export default function ConnectionsPage() {
       setPendingRequests((prev) => prev.filter((r) => r.id !== requestId));
       setConnections((prev) => [...prev, data]);
 
-      sendConnectionAcceptedNotification(
-        data.user1_id,
-        data.user2_id,
-        data.user2_profile?.display_name || "",
-      ).catch(console.error);
+      sendConnectionAcceptedNotification(data.id).catch(console.error);
     } catch {
       toast.error("Could not accept request");
     } finally {
@@ -288,7 +284,9 @@ export default function ConnectionsPage() {
                               size="sm"
                               className="flex-1"
                               onClick={() =>
-                                router.push(`/messages?user=${otherUser.id}`)
+                                router.push(
+                                  `/messages?conversation=${otherUser.id}`,
+                                )
                               }
                             >
                               <MessageCircle className="mr-2 h-3.5 w-3.5" />{" "}

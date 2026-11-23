@@ -89,8 +89,36 @@ function MessagesContent() {
       return;
     }
     const found = conversations.find((c) => c.partner_id === activePartnerId);
-    if (found) setActivePartner(found);
-  }, [activePartnerId, conversations]);
+    if (found) {
+      setActivePartner(found);
+    } else if (activePartner?.partner_id !== activePartnerId) {
+      // Partner not in conversations list, fetch their profile for new conversations
+      const fetchPartnerProfile = async () => {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("id, display_name, username, profile_picture")
+          .eq("id", activePartnerId)
+          .single();
+
+        if (!error && data) {
+          // Create a Conversation-like object from the profile data
+          const newPartner: Conversation = {
+            partner_id: data.id,
+            partner_display_name: data.display_name || "",
+            partner_username: data.username || "",
+            partner_profile_picture: data.profile_picture,
+            last_message: null,
+            last_message_at: null,
+            last_message_is_mine: false,
+            unread_count: 0,
+          };
+          setActivePartner(newPartner);
+        }
+      };
+      fetchPartnerProfile();
+    }
+  }, [activePartnerId, conversations, activePartner?.partner_id]);
 
   // ── Fetch messages between current user and active partner ───────────────
 
